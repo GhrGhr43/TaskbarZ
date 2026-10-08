@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Zombie Garage</title>
+<link rel="stylesheet" href="fonts/fonts.css">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+  <div class="topbar">
+    <h1 class="brand">Zombie <span>Garage</span></h1>
+    <div class="spacer"></div>
+    <button class="tb-btn" id="btn-dir" type="button" title="Sentido de la tira">Izq → Der</button>
+    <button class="tb-btn" id="btn-auto" type="button" aria-pressed="true">Salida automática</button>
+    <button class="tb-btn" id="btn-panel" type="button" aria-pressed="true">Garaje</button>
+    <button class="tb-btn go" id="btn-go" type="button">A la carretera</button>
+    <button class="tb-btn" id="btn-quit" type="button" hidden>Salir</button>
+  </div>
+
+  <div id="stage">
+    <canvas id="screen" width="512" height="128"></canvas>
+    <div class="hud">
+      <div class="tl"><span class="money" id="hud-money">$0</span><span class="kills" id="hud-kills"></span><span class="perks" id="hud-perks"></span></div>
+      <div class="tr"><span id="hud-dist"></span><span class="zone-name" id="hud-zone"></span></div>
+      <div class="bl">
+        <div class="meter"><label>Aguante</label><div class="bar"><div class="fill" id="hud-hp"></div></div></div>
+        <div class="meter fuel"><label>Gasolina</label><div class="bar"><div class="fill" id="hud-fuel"></div></div></div>
+      </div>
+    </div>
+    <div class="banner" id="banner"><div class="t"></div><div class="s"></div></div>
+    <div class="deathcard" id="deathcard"><div class="w"></div><div class="s"></div></div>
+  </div>
+
+  <div class="track" id="track"></div>
+  <div class="track-note" id="track-note"></div>
+
+  <section class="panel" id="panel">
+    <div class="card preview-wrap">
+      <canvas id="preview" width="112" height="40"></canvas>
+      <div id="stats"></div>
+      <div id="lock"></div>
+    </div>
+    <div class="card">
+      <div class="tabs" role="tablist" id="tabs"></div>
+      <div id="tab-body"></div>
+    </div>
+  </section>
+</div>
+<script src="js/util.js"></script>
+<script src="js/data.js"></script>
+<script src="js/sprites.js"></script>
+<script src="js/world.js"></script>
+<script src="js/fx.js"></script>
+<script src="js/game.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

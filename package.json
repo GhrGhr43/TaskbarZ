@@ -1,0 +1,25 @@
+{
+  "name": "taskbarz",
+  "productName": "Zombie Garage",
+  "version": "0.1.0",
+  "description": "Idle roguelike postapocalíptico para la barra de tareas: revienta zombis, muere, mejora el coche en el garaje y llega más lejos.",
+  "main": "electron/main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist:win": "electron-builder --win dir",
+    "dist:linux": "electron-builder --linux dir"
+  },
+  "devDependencies": {
+    "electron": "33.2.1",
+    "electron-builder": "25.1.8"
+  },
+  "build": {
+    "appId": "com.ghrghr43.taskbarz",
+    "productName": "Zombie Garage",
+    "files": ["electron/**", "game/**", "package.json"],
+    "directories": { "output": "dist" },
+    "win": { "target": "dir" },
+    "linux": { "target": "dir" }
+  }
+}
