@@ -2,13 +2,21 @@
 // Utilidades compartidas: resolución, aleatoriedad, color, dithering y contorno de sprites.
 window.ZG = window.ZG || {};
 (function (Z) {
-  Z.W = 512;          // resolución interna (tira tipo barra de tareas)
+  // Parámetros de la URL: ?modo=barra&w=960&h=56 (los pone la app de escritorio).
+  let qs = null;
+  try { qs = new URLSearchParams(location.search); } catch (e) { qs = new URLSearchParams(''); }
+  const qw = parseInt(qs.get('w'), 10), qh = parseInt(qs.get('h'), 10);
+  Z.TASKBAR = qs.get('modo') === 'barra';   // la app arrancó sobre la barra de tareas
+  Z.W = qw >= 320 && qw <= 2000 ? qw : 512;  // resolución interna (ancho)
   Z.H = 128;
+  Z.VIEW_H = qh >= 40 && qh <= 128 ? qh : 56; // filas visibles en modo barra (la parte baja del mundo)
+  Z.VIEW_TOP = Z.H - Z.VIEW_H;
+  Z.overlay = false;  // true mientras se dibuja como capa transparente sobre la barra
   Z.PXM = 4;          // píxeles por metro
   Z.ROAD_TOP = 98;
   Z.GROUND = 114;     // línea donde apoyan las ruedas del coche
   Z.CAR_X = 96;       // posición en pantalla del coche
-  Z.LW = 1024;        // ancho de las capas de fondo (se repiten)
+  Z.LW = Z.W > 900 ? 2048 : 1024; // ancho de las capas de fondo (se repiten); siempre >= W
 
   Z.rng = function (seed) {
     let s = (seed >>> 0) || 1;

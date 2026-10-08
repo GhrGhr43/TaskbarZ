@@ -184,15 +184,34 @@
     $('tabs').addEventListener('click', (e) => { const t = e.target.closest('[data-tab]'); if (t) { touch(); UI.tab = t.dataset.tab; UI.refresh(); } });
     $('btn-dir').addEventListener('click', () => { S.dir = S.dir === 'rtl' ? 'ltr' : 'rtl'; applyToggles(); Z.save(); });
     $('btn-auto').addEventListener('click', () => { S.auto = !S.auto; applyToggles(); Z.save(); });
-    // En la app de escritorio el panel abre la ventana grande; cerrado, queda la tira sobre la barra de tareas.
+    // App de escritorio: el juego corre encima de la barra de tareas (capa transparente).
+    // «Garaje» abre la ventana grande con la tienda; «Volver a la barra» la devuelve a su sitio.
     const desk = window.taskbarz;
     const setPanel = (open) => {
+      if (Z.TASKBAR) {
+        Z.setOverlay(!open);
+        if (desk) desk.setMode(open ? 'full' : 'taskbar');
+        $('btn-panel').textContent = 'Volver a la barra';
+        $('panel').hidden = false;
+        return;
+      }
       $('panel').hidden = !open; $('btn-panel').setAttribute('aria-pressed', open ? 'true' : 'false');
-      if (desk) { document.body.classList.toggle('strip', !open); desk.setMode(open ? 'full' : 'strip'); }
     };
-    $('btn-panel').addEventListener('click', () => setPanel($('panel').hidden));
-    if (desk) { $('btn-quit').hidden = false; $('btn-quit').addEventListener('click', () => desk.quit()); setPanel(false); }
-    $('btn-go').addEventListener('click', () => { touch(); G.lastInteract = -99; Z.launch(); });
+    $('btn-panel').addEventListener('click', () => setPanel(Z.TASKBAR ? false : $('panel').hidden));
+    $('bar-garage').addEventListener('click', () => { touch(); setPanel(true); });
+    $('bar-go').addEventListener('click', () => { G.lastInteract = -99; Z.launch(); });
+    $('bar-quit').addEventListener('click', () => { Z.save(); if (desk) desk.quit(); });
+    if (desk) { $('btn-quit').hidden = false; $('btn-quit').addEventListener('click', () => { Z.save(); desk.quit(); }); }
+    if (Z.TASKBAR) setPanel(false);
+    // En la barra, los clics atraviesan el juego salvo encima de sus botones (como Taskbar Hero).
+    let through = null;
+    document.addEventListener('mousemove', (e) => {
+      if (!desk || !Z.overlay) return;
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const t = !(el && el.closest('button'));
+      if (t !== through) { through = t; desk.setClickThrough(t); }
+    });
+    $('btn-go').addEventListener('click', () => { touch(); G.lastInteract = -99; if (Z.TASKBAR) setPanel(false); Z.launch(); });
     applyToggles();
     UI.refresh();
   };
@@ -271,10 +290,14 @@
       bn.querySelector('.t').textContent = b.text; bn.querySelector('.s').textContent = b.sub || '';
       bannerT = b.kind === 'zone' ? 3.2 : 2.2;
     }
-    const go = $('btn-go');
     const ready = G.mode === 'garage' && G.garage.repair >= 1 && !G.garage.launching;
-    go.disabled = !ready;
-    go.textContent = ready && S.auto && G.t - G.lastInteract > 4 ? `A la carretera (${Math.ceil(G.garage.countdown)})` : 'A la carretera';
+    const label = ready && S.auto && G.t - G.lastInteract > 4 ? `A la carretera (${Math.ceil(G.garage.countdown)})` : 'A la carretera';
+    for (const id of ['btn-go', 'bar-go']) {
+      const go = $(id);
+      if (go.disabled !== !ready) go.disabled = !ready;
+      setText(id, label);  // solo se reescribe si cambia, para no estorbar al clic
+    }
+    $('bar-go').hidden = !ready;
     renderTrack();
   };
 })(window.ZG);

@@ -291,6 +291,8 @@
     const z = Z.zoneAt(d);
     if (z > G.zone) {
       G.prevZone = G.zone; G.zone = z; G.zoneFade = 0; r.zone = z;
+      // Zona nueva: se acaba la presión, cambian los zombis y vuelven a llegar de menos a más.
+      G.dir.horde = null; G.dir.step = 0; G.dir.next = d + 70;
       Z.banner(Z.ZONES[z].name, Z.ZONES[z].sub, 'zone');
     }
     for (const rv of Z.RIVALS) {
@@ -455,6 +457,7 @@
     if (G.mode !== 'garage' || G.garage.repair < 1 || G.garage.launching) return;
     ensureArt();
     G.garage.launching = 0.001;
+    if (Z.overlay) G.garage.door = 1;
   };
   Z.refreshCar = function () {
     // Tras cambiar piezas en el garaje: reconstruye el sprite y las estadísticas.
@@ -481,14 +484,14 @@
     }
     if (g.launching) {
       g.launching += dt;
-      g.door = Math.min(1, g.door + dt * 1.5);
-      if (g.door >= 1) { car.speed = Math.min(160, car.speed + 120 * dt); g.mx += car.speed * dt; car.wheelRot += car.speed * dt / G.art.r; }
+      g.door = Math.min(1, g.door + dt * 3);
+      if (g.door >= 1) { car.speed = Math.min(200, car.speed + 260 * dt); g.mx += car.speed * dt; car.wheelRot += car.speed * dt / G.art.r; }
       if (g.mx > 320 && G.mode === 'garage') { G.mode = 'fadein-run'; G.fade = 0; }
     }
     car.bounce = 0;
   }
-  const garageCarX = () => 260 - Math.round(G.art.mw / 2) + Math.round(G.garage ? G.garage.mx : 0);
-  const garageGround = () => 104;
+  const garageCarX = () => (Z.overlay ? Z.CAR_X : Z.GOX + 260 - Math.round(G.art.mw / 2)) + Math.round(G.garage ? G.garage.mx : 0);
+  const garageGround = () => Z.overlay ? Z.GROUND : 104;
 
   // ---------------- Bucle ----------------
   Z.update = function (dt) {
@@ -532,38 +535,46 @@
     const lights = G.lights;
     const ctx = wctx;
     ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    const ov = Z.overlay;
+    if (ov) ctx.clearRect(0, 0, W, H);
     if (G.mode === 'garage' || G.mode === 'fadein-garage' || G.mode === 'fadein-run') renderGarage(ctx, lights);
     else renderRun(ctx, lights);
     Z.drawLights(ctx, lights);
-    Z.vignette(ctx);
-    if (G.night.id === 'sangre' && G.mode !== 'garage') { ctx.fillStyle = 'rgba(120,0,16,0.12)'; ctx.fillRect(0, 0, W, H); }
-    if (G.flash > 0) { ctx.fillStyle = Z.rgba(G.flashCol, Math.min(0.8, G.flash)); ctx.fillRect(0, 0, W, H); }
-    if (G.fade > 0) { ctx.fillStyle = `rgba(4,2,6,${G.fade})`; ctx.fillRect(0, 0, W, H); }
+    if (!ov) {
+      Z.vignette(ctx);
+      if (G.night.id === 'sangre' && G.mode !== 'garage') { ctx.fillStyle = 'rgba(120,0,16,0.12)'; ctx.fillRect(0, 0, W, H); }
+      if (G.flash > 0) { ctx.fillStyle = Z.rgba(G.flashCol, Math.min(0.8, G.flash)); ctx.fillRect(0, 0, W, H); }
+      if (G.fade > 0) { ctx.fillStyle = `rgba(4,2,6,${G.fade})`; ctx.fillRect(0, 0, W, H); }
+    }
 
     // Volcado a pantalla (con espejo si la barra va de derecha a izquierda)
     const o = out.getContext('2d');
     o.imageSmoothingEnabled = false;
-    o.fillStyle = '#000'; o.fillRect(0, 0, W, H);
+    const top = ov ? Z.VIEW_TOP : 0;  // en modo barra solo se ve la parte baja del mundo
+    if (ov) o.clearRect(0, 0, out.width, out.height); else { o.fillStyle = '#000'; o.fillRect(0, 0, W, H); }
     const sx = G.shake > 0 ? Math.round(Z.rr(-G.shake, G.shake)) : 0, sy = G.shake > 0 ? Math.round(Z.rr(-G.shake, G.shake) * 0.6) : 0;
     const rtl = S.dir === 'rtl';
     o.save();
     if (rtl) o.setTransform(-1, 0, 0, 1, W, 0);
-    o.drawImage(wc, sx, sy);
+    if (ov) o.globalAlpha = 1 - G.fade;
+    o.drawImage(wc, 0, top, W, H - top, sx, sy, W, H - top);
     o.restore();
+    o.globalAlpha = 1;
     // Textos flotantes (sin espejo)
     const mirror = (x) => rtl ? W - x : x;
     for (const f of G.floats) {
       const x = mirror(f.wx - G.camX) - Z.pixTextW(f.text) / 2;
       o.globalAlpha = Math.min(1, f.life * 2);
-      Z.pixText(o, f.text, x, f.y, f.color, '#1a0a08');
+      Z.pixText(o, f.text, x, f.y - top, f.color, '#1a0a08');
     }
     o.globalAlpha = 1;
     if (G.mode === 'run' || G.mode === 'dying') {
       o.font = '8px Silkscreen, monospace'; o.textBaseline = 'top';
       for (const m of G.markers || []) {
         const x = mirror(m.sx);
-        o.fillStyle = '#07050c'; o.fillText(m.label, Math.round(x - o.measureText(m.label).width / 2) + 1, m.y + 1);
-        o.fillStyle = m.color; o.fillText(m.label, Math.round(x - o.measureText(m.label).width / 2), m.y);
+        const my = ov ? 1 : m.y;
+        o.fillStyle = '#07050c'; o.fillText(m.label, Math.round(x - o.measureText(m.label).width / 2) + 1, my + 1);
+        o.fillStyle = m.color; o.fillText(m.label, Math.round(x - o.measureText(m.label).width / 2), my);
       }
     }
   };
@@ -594,11 +605,14 @@
 
   function renderRun(ctx, lights) {
     const camX = G.camX, art = G.art, car = G.car;
-    if (G.zoneFade < 1) {
+    if (Z.overlay) {
+      // Sobre la barra de tareas: sin cielo; carretera translúcida para que se intuya la barra debajo.
+      ctx.globalAlpha = 0.6; Z.drawRoad(ctx, G.zoneFade < 0.5 ? G.prevZone : G.zone, camX); ctx.globalAlpha = 1;
+    } else if (G.zoneFade < 1) {
       Z.drawBackdrop(ctx, G.prevZone, camX, G.t, 1, lights, G.night);
       Z.drawBackdrop(ctx, G.zone, camX, G.t, G.zoneFade, lights, G.night);
     } else Z.drawBackdrop(ctx, G.zone, camX, G.t, 1, lights, G.night);
-    Z.drawRoad(ctx, G.zoneFade < 0.5 ? G.prevZone : G.zone, camX);
+    if (!Z.overlay) Z.drawRoad(ctx, G.zoneFade < 0.5 ? G.prevZone : G.zone, camX);
     FX.drawDecals(ctx, camX);
 
     // marcadores: récord y rivales (cruces al borde de la carretera)
@@ -649,7 +663,8 @@
 
   function renderGarage(ctx, lights) {
     const g = G.garage, art = G.art, car = G.car;
-    Z.drawGarage(ctx, G.t, lights, g ? g.door : 0);
+    if (Z.overlay) { ctx.globalAlpha = 0.6; Z.drawRoad(ctx, 0, 0); ctx.globalAlpha = 1; }
+    else Z.drawGarage(ctx, G.t, lights, g ? g.door : 0);
     const cx = garageCarX(), gy = garageGround();
     ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(cx - 2, gy, art.mw + 4, 2);
     Z.drawCar(ctx, art, car, cx, gy, G.t);

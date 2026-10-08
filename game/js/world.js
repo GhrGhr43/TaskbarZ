@@ -378,6 +378,8 @@
 
   // ---------------- Garaje ----------------
   let GAR = null;
+  const GOX = Math.max(0, Math.round((W - 512) / 2)); // el interior del garaje mide 512 y se centra
+  Z.GOX = GOX;
   function buildGarage() {
     const rnd = Z.rng(99);
     const [c, x] = Z.canvas(W, H);
@@ -391,6 +393,7 @@
     Z.ditherV(x, 0, 100, W, 28, ['#2a2628', '#1e1a1c', '#141012']);
     for (let i = 0; i < 12; i++) { x.fillStyle = 'rgba(0,0,0,0.35)'; x.beginPath(); x.ellipse(rnd() * W, 106 + rnd() * 18, 8 + rnd() * 14, 2 + rnd() * 2, 0, 0, Math.PI * 2); x.fill(); }
     Z.rect(x, 0, 100, W, 1, '#3a3234');
+    x.save(); x.translate(GOX, 0);
     // panel de herramientas
     Z.rect(x, 30, 30, 70, 34, '#3a2a1e'); Z.rect(x, 30, 30, 70, 1, '#5a4430');
     for (let i = 0; i < 9; i++) { const tx = 34 + i * 7; Z.rect(x, tx, 34 + (i % 3) * 2, 1, 10 + (i % 4) * 3, '#8a8a96'); Z.rect(x, tx - 1, 34 + (i % 3) * 2, 3, 2, '#5a5a66'); }
@@ -411,11 +414,14 @@
     // ascensor hidráulico
     Z.rect(x, 200, 104, 120, 3, '#4a4a52'); Z.rect(x, 200, 104, 120, 1, '#8a8a96');
     Z.rect(x, 214, 107, 4, 14, '#2a2a30'); Z.rect(x, 302, 107, 4, 14, '#2a2a30');
+    x.restore();
     GAR = { c };
   }
   Z.drawGarage = function (ctx, t, lightsOut, doorOpen) {
     if (!GAR) buildGarage();
     ctx.drawImage(GAR.c, 0, 0);
+    ctx.save(); ctx.translate(GOX, 0);
+    const lightsAt = lightsOut.length;
     // letrero de neón
     const on = Math.sin(t * 17) > -0.8 || Math.sin(t * 2.3) > 0;
     ctx.font = '8px monospace';
@@ -434,13 +440,15 @@
     ctx.beginPath(); ctx.moveTo(lx - 3, ly + 3); ctx.lineTo(lx + 3, ly + 3); ctx.lineTo(lx + 70, 104); ctx.lineTo(lx - 70, 104); ctx.fill();
     lightsOut.push({ x: lx, y: ly + 6, r: 90, color: '#ffd8a0', a: 0.28 });
     // puerta
-    if (doorOpen > 0) {
+    if (doorOpen > 0 && Math.round(72 * doorOpen) > 0) {
       const hgt = Math.round(72 * doorOpen);
-      Z.ditherV(ctx, 440, 28 + 72 - hgt, 72, hgt, ['#0c0f28', '#22214a', '#6a3a52']);
+      Z.ditherV(ctx, 440 + GOX, 28 + 72 - hgt, 72, hgt, ['#0c0f28', '#22214a', '#6a3a52']);
       Z.rect(ctx, 440, 28 + 72 - hgt - 1, 72, 1, '#4a4c58');
       lightsOut.push({ x: 476, y: 90, r: 40 * doorOpen, color: '#8a90ff', a: 0.25 });
     }
     // texto del cartel con fuente bitmap
     Z.pixText(ctx, on ? 'ZG' : '', 254, 11, '#ff4a5a');
+    ctx.restore();
+    for (let i = lightsAt; i < lightsOut.length; i++) lightsOut[i].x += GOX;
   };
 })(window.ZG);

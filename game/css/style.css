@@ -147,10 +147,27 @@ h3 { font-family: var(--font-display); font-weight: 400; font-size: 22px; margin
 
 @media (prefers-reduced-motion: reduce) { .banner, .deathcard { transition: none; } }
 
-/* App de escritorio: modo tira (solo el juego y una barra mínima, se puede arrastrar) */
-body.strip { padding: 4px 6px; overflow: hidden; }
-body.strip #app { gap: 4px; max-width: none; }
-body.strip .brand, body.strip .track, body.strip .track-note { display: none; }
-body.strip .tb-btn { padding: 3px 7px; font-size: 9px; }
-body.strip .topbar { -webkit-app-region: drag; }
-body.strip .topbar button { -webkit-app-region: no-drag; }
+/* Botones pequeños dentro del escenario: solo se ven en modo barra de tareas */
+.bar-ctl { display: none; }
+
+/* Modo barra de tareas: capa transparente a lo ancho de la pantalla, encima de la barra */
+html:has(body.overlay), body.overlay { background: transparent; overflow: hidden; }
+body.overlay { padding: 0; }
+body.overlay #app { max-width: none; display: block; }
+body.overlay .topbar, body.overlay .track, body.overlay .track-note, body.overlay #panel { display: none; }
+body.overlay #stage { position: fixed; inset: 0; width: 100vw; height: 100vh; aspect-ratio: auto; background: transparent; border: 0; box-shadow: none; }
+body.overlay .hud { font-size: 11px; }
+body.overlay .hud .tl, body.overlay .hud .tr { top: 2px; }
+body.overlay .hud .bl { top: 18px; }
+body.overlay .meter { width: 70px; }
+body.overlay .meter label { display: none; }
+body.overlay .zone-name { font-size: 15px; }
+body.overlay .banner { top: 0; }
+body.overlay .banner .t { font-size: 20px; }
+body.overlay .banner .s { display: none; }
+body.overlay .deathcard .w { font-size: 30px; }
+body.overlay .bar-ctl { display: flex; gap: 4px; position: absolute; top: 2px; right: 1.5%; }
+body.overlay .hud .tr { right: 260px; }
+body.overlay #stage.rtl .hud .tr { right: auto; left: 260px; }
+body.overlay .bar-ctl .tb-btn { padding: 2px 6px; font-size: 9px; background: rgba(21,16,22,0.85); }
+body.overlay #stage.rtl .bar-ctl { right: auto; left: 1.5%; }

@@ -6,6 +6,15 @@
   const [wc, wctx] = Z.canvas(Z.W, Z.H);
   Z.debug = { timeScale: 1 };
 
+  // Capa sobre la barra de tareas (true) o ventana normal con el escenario completo (false).
+  Z.setOverlay = function (on) {
+    Z.overlay = on;
+    document.body.classList.toggle('overlay', on);
+    out.width = Z.W; out.height = on ? Z.VIEW_H : Z.H;
+    document.getElementById('stage').style.aspectRatio = on ? '' : `${Z.W} / ${Z.H}`;
+  };
+  Z.setOverlay(false);
+
   Z.zombieSprites();
   Z.UI.init();
   Z.enterGarage(true);

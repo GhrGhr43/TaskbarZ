@@ -15,7 +15,7 @@ Nada de este repositorio sube ni publica nada en Steam. Esta lista resume qué h
 3. **Guardado en archivo**: pasar de localStorage a un archivo en la carpeta de datos del usuario, para que Steam Cloud pueda sincronizarlo.
 4. **Arte definitivo**: el pixel art actual es procedural y provisional; para la tienda hace falta arte hecho a mano (sprites, cápsulas, capturas, tráiler).
 5. **Sonido y música**.
-6. **Opciones**: tamaño de la tira, monitor, volumen, idioma (español e inglés como mínimo).
+6. **Opciones**: alto de la franja sobre la barra, monitor y barra lateral o superior, volumen, idioma (español e inglés como mínimo).
 7. **Icono, nombre y metadatos del ejecutable** (requiere compilar en Windows o Wine).
 8. **Ranking online**: los rivales actuales son personajes del juego; un ranking real usaría las leaderboards de Steam.
 9. **Página de tienda y clasificación por edades** (el juego tiene violencia y sangre).
