@@ -21,7 +21,7 @@
 
   let last = performance.now(), saveT = 0, uiT = 0;
   function frame(now) {
-    let dt = Math.min(0.05, (now - last) / 1000);
+    let dt = Math.max(0, Math.min(0.05, (now - last) / 1000));  // el primer frame puede llegar con hora anterior
     last = now;
     const steps = Math.max(1, Math.round(Z.debug.timeScale));
     for (let i = 0; i < steps; i++) Z.update(dt);

@@ -10,12 +10,12 @@
 
   // ---------- Estadísticas ----------
   const STATROWS = [
-    { k: 'hp', name: 'Aguante', fmt: v => Math.round(v), max: 1500 },
-    { k: 'speed', name: 'Velocidad', fmt: v => Math.round(v / Z.PXM * 3.6) + ' km/h', max: 140 },
-    { k: 'dmg', name: 'Daño', fmt: v => Math.round(v), max: 260 },
-    { k: 'armor', name: 'Blindaje', fmt: v => Math.round(v * 100) + '%', max: 0.8 },
-    { k: 'fuel', name: 'Autonomía', fmt: v => Z.fmt(v * 10) + ' m', max: 1500 },
-    { k: 'dps', name: 'Arma', fmt: v => v ? Math.round(v) + ' dps' : '—', max: 220 },
+    { k: 'hp', name: 'Aguante', icon: 'corazon', fmt: v => Math.round(v), max: 1500 },
+    { k: 'speed', name: 'Velocidad', icon: 'velocidad', fmt: v => Math.round(v / Z.PXM * 3.6) + ' km/h', max: 140 },
+    { k: 'dmg', name: 'Daño', icon: 'calavera', fmt: v => Math.round(v), max: 260 },
+    { k: 'armor', name: 'Blindaje', icon: 'blindaje', fmt: v => Math.round(v * 100) + '%', max: 0.8 },
+    { k: 'fuel', name: 'Autonomía', icon: 'bidon', fmt: v => Z.fmt(v * 10) + ' m', max: 1500 },
+    { k: 'dps', name: 'Arma', icon: 'bala', fmt: v => v ? Math.round(v) + ' dps' : '—', max: 220 },
   ];
   function renderStats() {
     const cur = Z.statsNow();
@@ -33,7 +33,7 @@
       const d = n - v;
       const diff = Math.abs(d) > 1e-6 ? `<b class="${d < 0 ? 'neg' : ''}" style="left:${Math.min(sc(v), sc(n))}%;width:${Math.abs(sc(n) - sc(v))}%"></b>` : '';
       const em = Math.abs(d) > 1e-6 ? ` <em class="${d < 0 ? 'neg' : ''}">${d > 0 ? '▲' : '▼'}</em>` : '';
-      return `<div class="stat"><span class="name">${r.name}</span><span class="sbar"><i style="width:${sc(v)}%"></i>${diff}</span><span class="val">${r.fmt(n)}${em}</span></div>`;
+      return `<div class="stat"><span class="name">${Z.icon(r.icon, 1)}${r.name}</span><span class="sbar"><i style="width:${sc(v)}%"></i>${diff}</span><span class="val">${r.fmt(n)}${em}</span></div>`;
     }).join('');
   }
   // La velocidad se compara en px/s; el máximo de la barra está en km/h, se convierte aquí.
@@ -52,14 +52,27 @@
   }
 
   // ---------- Pestañas ----------
-  const TABS = [
-    { id: 'taller', name: 'Taller' }, { id: 'mejoras', name: 'Mejoras' }, { id: 'pintura', name: 'Pintura' },
-    { id: 'objetivos', name: 'Objetivos' }, { id: 'ranking', name: 'Ranking' },
+  // Otras partes del juego pueden añadir su pestaña con UI.addTab (la de «Armas» va justo después de «Taller»):
+  //   ZG.UI.addTab({ id: 'armas', name: 'Armas', icon: 'armas', after: 'taller',
+  //                  render(body, ctx) { body.innerHTML = '…' }, onClick(e, ctx) { return true si lo ha gestionado }, sig() { return '…' } })
+  // ctx = { inGarage, esc, refresh }. sig() devuelve algo que cambie cuando haya que repintar la pestaña.
+  const TABS = UI.tabs = [
+    { id: 'taller', name: 'Taller', icon: 'llave' }, { id: 'mejoras', name: 'Mejoras', icon: 'mejora' }, { id: 'pintura', name: 'Pintura', icon: 'pintura' },
+    { id: 'objetivos', name: 'Objetivos', icon: 'diana' }, { id: 'ranking', name: 'Ranking', icon: 'corona' },
   ];
+  UI.addTab = function (t) {
+    const old = TABS.findIndex(x => x.id === t.id);
+    if (old >= 0) TABS.splice(old, 1);
+    const i = t.after ? TABS.findIndex(x => x.id === t.after) : -1;
+    TABS.splice(i >= 0 ? i + 1 : TABS.length, 0, t);
+    if (UI.ready) UI.refresh();
+  };
+  const tabCtx = () => ({ inGarage: inGarage(), esc, refresh: () => UI.refresh() });
+  const extTab = () => TABS.find(t => t.id === UI.tab && t.render);
   function claimable() { return Z.OBJECTIVES.filter(o => !S.claimed[o.id] && o.prog(S)[0] >= o.prog(S)[1]).length; }
   function renderTabs() {
     const n = claimable();
-    $('tabs').innerHTML = TABS.map(t => `<button role="tab" type="button" data-tab="${t.id}" aria-selected="${UI.tab === t.id}">${t.name}${t.id === 'objetivos' && n ? `<span class="badge">${n}</span>` : ''}</button>`).join('');
+    $('tabs').innerHTML = TABS.map(t => `<button role="tab" type="button" data-tab="${t.id}" aria-selected="${UI.tab === t.id}">${t.icon ? Z.icon(t.icon, 2) : ''}${t.name}${t.id === 'objetivos' && n ? `<span class="badge">${n}</span>` : ''}</button>`).join('');
   }
 
   function partCard(slot, p) {
@@ -83,17 +96,19 @@
 
   function renderBody() {
     const b = $('tab-body');
+    const ext = extTab();
+    if (ext) { ext.render(b, tabCtx()); return; }
     if (UI.tab === 'taller') {
       const slots = Z.SLOTS.map(s => {
         const p = Z.part(s.id, S.eq[s.id]), lvl = S.owned[s.id][p.id] || 0;
-        return `<button class="slot" type="button" data-slot-pick="${s.id}" aria-pressed="${UI.slot === s.id}"><small>${s.name}</small><span>${esc(p.name)}${lvl ? ' · Nv ' + lvl : ''}</span></button>`;
+        return `<button class="slot" type="button" data-slot-pick="${s.id}" aria-pressed="${UI.slot === s.id}"><span class="si">${Z.icon(s.id, 2)}</span><span class="st"><small>${s.name}</small><span>${esc(p.name)}${lvl ? ' · Nv ' + lvl : ''}</span></span></button>`;
       }).join('');
       b.innerHTML = `<div class="taller"><div class="slots">${slots}</div><div class="parts">${Z.PARTS[UI.slot].map(p => partCard(UI.slot, p)).join('')}</div></div>`;
     } else if (UI.tab === 'mejoras') {
       b.innerHTML = `<p class="hint">Mejoras del taller. Se quedan para siempre y afectan a todos tus coches.</p><div class="parts" style="margin-top:8px">${Z.GARAGE.map(g => {
         const lvl = S.garage[g.id], c = Z.garageCost(g, lvl), max = lvl >= g.max;
-        const eff = g.id === 'mecanico' ? `Reparación: ${Z.repairTime().toFixed(1)} s` : g.id === 'chatarrero' ? `+${lvl * 10}% dinero` : g.id === 'reserva' ? `+${lvl * 10}% gasolina` : `+${lvl * 8}% aguante`;
-        return `<div class="part"><h4>${g.name}</h4><p>${g.desc}</p><div class="chips"><span class="chip">Nv ${lvl}/${g.max}</span><span class="chip">${eff}</span></div><div class="row">${max ? '<span class="tag">Al máximo</span>' : `<button class="btn buy" type="button" data-act="garage" data-id="${g.id}" ${!inGarage() || S.money < c ? 'disabled' : ''}>Mejorar $${Z.fmt(c)}</button>`}</div></div>`;
+        const pips = `<div class="pips" aria-label="Nivel ${lvl} de ${g.max}">${Array.from({ length: g.max }, (_, i) => `<i class="${i < lvl ? 'on' : ''}"></i>`).join('')}</div>`;
+        return `<div class="part upg"><div class="ph">${Z.icon(g.icon || 'mejora', 3)}<h4>${g.name}</h4></div><p>${g.desc}</p><div class="chips">${garageEffect(g.id, lvl, max)}</div>${pips}<div class="row">${max ? '<span class="tag">Al máximo</span>' : `<button class="btn buy" type="button" data-act="garage" data-id="${g.id}" ${!inGarage() || S.money < c ? 'disabled' : ''}>Mejorar $${Z.fmt(c)}</button>`}</div></div>`;
       }).join('')}</div>`;
     } else if (UI.tab === 'pintura') {
       const g = inGarage();
@@ -120,13 +135,25 @@
     }
   }
 
+  // Efecto de una mejora del taller ahora y con un nivel más.
+  function garageEffect(id, lvl, max) {
+    const at = (l, f) => { const o = S.garage[id]; S.garage[id] = l; try { return f(); } finally { S.garage[id] = o; } };
+    const pct = (x) => Math.round(x * 100) + '%';
+    const two = (f) => `<span class="chip">${f(lvl)}</span>${max ? '' : `<span class="chip next">▲ ${f(lvl + 1)}</span>`}`;
+    if (id === 'mecanico') return two(l => at(l, () => `Solo: ${Math.round(Z.repairTime())} s · Clic: +${pct(Z.repairClick())}`));
+    if (id === 'surtidor') return two(l => at(l, () => `Solo: ${Math.round(Z.refuelTime())} s · Clic: +${pct(Z.refuelClick())}`));
+    if (id === 'chatarrero') return two(l => `+${l * 10}% dinero`);
+    if (id === 'reserva') return two(l => `+${l * 10}% gasolina`);
+    return two(l => `+${l * 8}% aguante`);
+  }
+
   UI.refresh = function () {
     renderTabs(); renderBody(); renderStats();
     $('lock').innerHTML = inGarage() ? '' : '<div class="lock">Estás en la carretera. Las compras y cambios de piezas se hacen en el garaje.</div>';
     UI.sig = sig();
   };
   // Firma barata para saber cuándo hay que volver a pintar el panel.
-  function sig() { return [UI.tab, UI.slot, inGarage(), Math.floor(Math.log10(S.money + 1) * 20), claimable(), S.money >= 0 ? affordCount() : 0].join('|'); }
+  function sig() { const ext = extTab(); return [UI.tab, UI.slot, inGarage(), Math.floor(Math.log10(S.money + 1) * 20), claimable(), S.money >= 0 ? affordCount() : 0, ext && ext.sig ? ext.sig() : ''].join('|'); }
   function affordCount() {
     let n = 0;
     for (const s of Z.SLOTS) for (const p of Z.PARTS[s.id]) {
@@ -173,6 +200,8 @@
 
   UI.init = function () {
     $('tab-body').addEventListener('click', (e) => {
+      const ext = extTab();
+      if (ext && ext.onClick && ext.onClick(e, tabCtx())) { touch(); return; }
       const pick = e.target.closest('[data-slot-pick]');
       if (pick) { touch(); UI.slot = pick.dataset.slotPick; UI.hover = null; UI.refresh(); return; }
       const b = e.target.closest('[data-act]');
@@ -210,7 +239,20 @@
     if (Z.TASKBAR) setPanel(false);
     // En la barra, los clics atraviesan el juego salvo encima de sus botones (lo gestiona js/shot.js).
     $('btn-go').addEventListener('click', () => { touch(); G.lastInteract = -99; if (Z.TASKBAR) setPanel(false); Z.launch(); });
+    // Servicio: reparar (coche) y repostar (surtidor), con clic en el escenario o en sus botones.
+    $('hot-car').addEventListener('click', (e) => UI.serviceClick('hp', e));
+    $('hot-pump').addEventListener('click', (e) => UI.serviceClick('fuel', e));
+    $('btn-repair').addEventListener('click', (e) => UI.serviceClick('hp', e));
+    $('btn-refuel').addEventListener('click', (e) => UI.serviceClick('fuel', e));
+    $('bar-repair').addEventListener('click', (e) => UI.serviceClick('hp', e));
+    $('bar-refuel').addEventListener('click', (e) => UI.serviceClick('fuel', e));
+    for (const [id, k] of [['hot-car', 'hp'], ['hot-pump', 'fuel']]) {
+      $(id).addEventListener('pointerenter', () => { Z.Service.hover = k; });
+      $(id).addEventListener('pointerleave', () => { if (Z.Service.hover === k) Z.Service.hover = null; });
+    }
+    Z.fillIcons();
     applyToggles();
+    UI.ready = true;
     UI.refresh();
   };
 
@@ -259,25 +301,105 @@
 
   let hudCache = {};
   const setText = (id, v) => { if (hudCache[id] !== v) { hudCache[id] = v; $(id).textContent = v; } };
+  // ---------- Aguante y gasolina: HUD, panel de servicio y zonas pulsables ----------
+  const setW = (id, f) => { const v = (Z.clamp(f, 0, 1) * 100).toFixed(1) + '%'; if (hudCache[id] !== v) { hudCache[id] = v; $(id).style.width = v; } };
+  const setCls = (id, cls, on) => { const k = id + '.' + cls; if (hudCache[k] !== on) { hudCache[k] = on; $(id).classList.toggle(cls, on); } };
+  function vitals() {
+    const car = G.car;
+    if (!car) return { hp: 1, fuel: 1, hpN: 0, hpMax: 0, m: 0, mMax: 0 };
+    const fuel = Z.clamp(car.fuel / Math.max(1, car.maxFuel), 0, 1);
+    return { hp: car.hpFrac, fuel, hpN: Math.max(0, Math.ceil(car.hp)), hpMax: Math.round(car.maxHp), m: Math.max(0, Math.floor(car.fuel * 10)), mMax: Math.round(car.maxFuel * 10) };
+  }
+  function meters(v, running) {
+    setW('hud-hp', v.hp); setW('hud-fuel', v.fuel);
+    setText('hud-hp-n', v.hpN + '/' + v.hpMax);
+    setText('hud-fuel-n', Z.fmt(v.m) + ' m');
+    // en carretera parpadean cuando queda poco
+    setCls('m-hp', 'low', running && v.hp < 0.3);
+    setCls('m-fuel', 'low', running && v.fuel < 0.2);
+    setText('hud-warn', running && G.car.fuel <= 0 ? 'SIN GASOLINA' : running && v.hp < 0.3 ? '¡EL COCHE NO AGUANTA!' : running && v.fuel < 0.2 ? 'RESERVA' : '');
+  }
+  const SV = () => Z.Service;
+  function servicePanel(v, running) {
+    const g = !running && G.garage, busy = !g || G.mode !== 'garage' || g.launching;
+    setW('svc-hp-fill', v.hp); setW('svc-fuel-fill', v.fuel);
+    setText('svc-hp-v', `${v.hpN} / ${v.hpMax}`);
+    setText('svc-fuel-v', `${Z.fmt(v.m)} / ${Z.fmt(v.mMax)} m`);
+    setCls('svc-hp', 'low', v.hp < 0.3); setCls('svc-fuel', 'low', v.fuel < 0.2);
+    setCls('svc-hp', 'full', v.hp >= 1); setCls('svc-fuel', 'full', v.fuel >= 1);
+    const pct = (x) => Math.round(x * 100) + '%';
+    if (running) {
+      setText('svc-hp-s', v.hp < 0.3 ? 'A punto de romperse' : 'En carretera');
+      setText('svc-fuel-s', G.car.fuel <= 0 ? 'Depósito vacío' : `Te quedan ${Z.fmt(v.m)} m`);
+    } else {
+      const k = (kind) => SV().combo[kind] > 0 && SV().comboT[kind] > 0 ? ` · racha x${SV().mult(kind).toFixed(1)}` : '';
+      setText('svc-hp-s', v.hp >= 1 ? 'Reparado' : `Solo: +${(100 / Z.repairTime()).toFixed(1)}%/s · Clic: +${pct(Z.repairClick())}${k('hp')}`);
+      setText('svc-fuel-s', v.fuel >= 1 ? 'Depósito lleno' : `Solo: +${(100 / Z.refuelTime()).toFixed(1)}%/s · Clic: +${pct(Z.refuelClick())}${k('fuel')}`);
+    }
+    for (const [id, full] of [['btn-repair', v.hp >= 1], ['btn-refuel', v.fuel >= 1], ['bar-repair', v.hp >= 1], ['bar-refuel', v.fuel >= 1]]) {
+      const dis = busy || full, b = $(id);
+      if (b.disabled !== dis) b.disabled = dis;
+    }
+    $('bar-repair').hidden = busy || v.hp >= 1;
+    $('bar-refuel').hidden = busy || v.fuel >= 1;
+    setW('bar-repair-f', v.hp); setW('bar-refuel-f', v.fuel);
+  }
+  // Botones invisibles encima del coche y del surtidor (sirven también en la barra de tareas).
+  function hotspots() {
+    const on = G.mode === 'garage' && G.garage && !G.garage.launching && G.art;
+    for (const id of ['hot-car', 'hot-pump']) if ($(id).hidden !== !on) $(id).hidden = !on;
+    if (!on) { SV().hover = null; return; }
+    const L = SV().layout(), top = Z.overlay ? Z.VIEW_TOP : 0, vh = Z.overlay ? Z.VIEW_H : Z.H, rtl = S.dir === 'rtl';
+    const place = (id, r, full) => {
+      // En la barra de tareas solo se puede pinchar por encima de la barra real, para no tapar Inicio ni los iconos.
+      if (Z.overlay) { const y2 = Math.min(r.y + r.h, Z.H - Z.TB_ROWS); r = { x: r.x, y: r.y, w: r.w, h: Math.max(0, y2 - r.y) }; }
+      const x = rtl ? Z.W - r.x - r.w : r.x;
+      const css = `left:${(x / Z.W * 100).toFixed(2)}%;top:${((r.y - top) / vh * 100).toFixed(2)}%;width:${(r.w / Z.W * 100).toFixed(2)}%;height:${(r.h / vh * 100).toFixed(2)}%`;
+      const el = $(id);
+      if (hudCache[id] !== css) { hudCache[id] = css; el.style.cssText = css; }
+      el.classList.toggle('done', full);
+    };
+    place('hot-car', L.car, S.svc.hp >= 1);
+    place('hot-pump', L.pump, S.svc.fuel >= 1);
+  }
+  // Pasa un clic de la pantalla a coordenadas del mundo (para que las chispas salgan donde pinchas).
+  function toWorld(e) {
+    const r = $('screen').getBoundingClientRect();
+    const top = Z.overlay ? Z.VIEW_TOP : 0, vh = Z.overlay ? Z.VIEW_H : Z.H;
+    let x = (e.clientX - r.left) / r.width * Z.W;
+    if (S.dir === 'rtl') x = Z.W - x;
+    return [x, top + (e.clientY - r.top) / r.height * vh];
+  }
+  UI.serviceClick = function (kind, e) {
+    let wx, wy;
+    if (e && e.clientX !== undefined && e.detail > 0 && e.currentTarget && e.currentTarget.classList.contains('hot')) [wx, wy] = toWorld(e);
+    SV().click(kind, wx, wy);
+    const el = $(kind === 'hp' ? 'svc-hp' : 'svc-fuel');
+    el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
+  };
+
   UI.frame = function (dt) {
     setText('hud-money', '$' + Z.fmt(S.money));
     const running = G.mode !== 'garage' && G.mode !== 'fadein-garage' && G.mode !== 'fadein-run' && G.run;
+    const v = vitals();
     if (running) {
       setText('hud-kills', G.run.kills + ' bajas');
       setText('hud-dist', Math.floor(G.run.dist) + ' m');
       setText('hud-zone', Z.ZONES[G.zone].name);
-      $('hud-hp').style.width = (G.car.hpFrac * 100).toFixed(1) + '%';
-      $('hud-fuel').style.width = Z.clamp(G.car.fuel / G.car.maxFuel * 100, 0, 100).toFixed(1) + '%';
-      const p = Object.entries(G.car.perks).filter(([, v]) => v > 0).map(([k, v]) => Z.PERKS.find(x => x.id === k).name + ' ' + Math.ceil(v));
+      const p = Object.entries(G.car.perks).filter(([, x]) => x > 0).map(([k, x]) => Z.PERKS.find(q => q.id === k).name + ' ' + Math.ceil(x));
       setText('hud-perks', p.join(' · '));
     } else {
       setText('hud-kills', ''); setText('hud-perks', '');
-      setText('hud-dist', G.garage && G.garage.repair < 1 ? 'Reparando ' + Math.floor(G.garage.repair * 100) + '%' : 'Listo');
+      const todo = [];
+      if (v.hp < 1) todo.push('Reparando ' + Math.floor(v.hp * 100) + '%');
+      if (v.fuel < 1) todo.push('Repostando ' + Math.floor(v.fuel * 100) + '%');
+      setText('hud-dist', todo.length ? todo.join(' · ') : 'Listo');
       setText('hud-zone', 'El Garaje');
-      $('hud-hp').style.width = ((G.car ? G.car.hpFrac : 1) * 100) + '%';
-      $('hud-fuel').style.width = '100%';
     }
-    if (deathShown && G.mode === 'garage' && G.garage.repair > 0.35) { $('deathcard').classList.remove('show'); deathShown = false; }
+    meters(v, running);
+    servicePanel(v, running);
+    hotspots();
+    if (deathShown && G.mode === 'garage' && (G.garage.t > 3 || G.t - G.lastInteract < 0.5)) { $('deathcard').classList.remove('show'); deathShown = false; }
     // carteles
     const bn = $('banner');
     if (deathShown) bannerQ.length = 0;
@@ -288,14 +410,22 @@
       bn.querySelector('.t').textContent = b.text; bn.querySelector('.s').textContent = b.sub || '';
       bannerT = b.kind === 'zone' ? 3.2 : 2.2;
     }
-    const ready = G.mode === 'garage' && G.garage.repair >= 1 && !G.garage.launching;
-    const label = ready && S.auto && G.t - G.lastInteract > 4 ? `A la carretera (${Math.ceil(G.garage.countdown)})` : 'A la carretera';
+    // salida: en automático cuando está todo a punto; a mano en cuanto aguanta un poco y lleva algo de gasolina
+    const here = G.mode === 'garage' && !G.garage.launching;
+    const can = here && SV().canLaunch(), full = SV().full();
+    let label = 'A la carretera';
+    if (here && !can) label = S.svc.hp < SV().MIN_HP ? 'Repara el coche' : 'Echa gasolina';
+    else if (can && full && S.auto && G.t - G.lastInteract > 4) label = `A la carretera (${Math.ceil(G.garage.countdown)})`;
+    const tip = can && !full ? `Sales con el ${Math.floor(S.svc.hp * 100)}% de aguante y el ${Math.floor(S.svc.fuel * 100)}% de gasolina` : '';
     for (const id of ['btn-go', 'bar-go']) {
       const go = $(id);
-      if (go.disabled !== !ready) go.disabled = !ready;
+      if (go.disabled !== !can) go.disabled = !can;
       setText(id, label);  // solo se reescribe si cambia, para no estorbar al clic
+      if (go.title !== tip) go.title = tip;
     }
-    $('bar-go').hidden = !ready;
+    $('bar-go').hidden = !can;
+    // en la barra de tareas, los textos de la derecha se apartan de los botones (que cambian de ancho)
+    if (Z.overlay) { const r = $('bar-ctl').offsetWidth + 24 + 'px'; if (hudCache.trR !== r) { hudCache.trR = r; $('hud-tr').style.setProperty('--tr-off', r); } }
     renderTrack();
   };
 })(window.ZG);

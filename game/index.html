@@ -22,19 +22,47 @@
   <div id="stage">
     <canvas id="screen" width="512" height="128"></canvas>
     <div class="hud">
-      <div class="tl"><span class="money" id="hud-money">$0</span><span class="kills" id="hud-kills"></span><span class="perks" id="hud-perks"></span></div>
-      <div class="tr"><span id="hud-dist"></span><span class="zone-name" id="hud-zone"></span></div>
+      <div class="tl"><span class="money"><span class="mi" data-icon="moneda" data-scale="2"></span><span id="hud-money">$0</span></span><span class="kills" id="hud-kills"></span><span class="perks" id="hud-perks"></span></div>
+      <div class="tr" id="hud-tr"><span id="hud-dist"></span><span class="zone-name" id="hud-zone"></span></div>
       <div class="bl">
-        <div class="meter"><label>Aguante</label><div class="bar"><div class="fill" id="hud-hp"></div></div></div>
-        <div class="meter fuel"><label>Gasolina</label><div class="bar"><div class="fill" id="hud-fuel"></div></div></div>
+        <div class="meter hp" id="m-hp" title="Aguante del coche"><span class="mi" data-icon="corazon" data-scale="2"></span><div class="bar"><div class="fill" id="hud-hp"></div></div><span class="num" id="hud-hp-n"></span></div>
+        <div class="meter fuel" id="m-fuel" title="Gasolina (metros que te quedan)"><span class="mi" data-icon="bidon" data-scale="2"></span><div class="bar"><div class="fill" id="hud-fuel"></div></div><span class="num" id="hud-fuel-n"></span></div>
+        <span class="warn" id="hud-warn"></span>
       </div>
     </div>
     <div class="banner" id="banner"><div class="t"></div><div class="s"></div></div>
     <div class="deathcard" id="deathcard"><div class="w"></div><div class="s"></div></div>
+    <!-- Zonas pulsables del garaje: el coche (reparar) y el surtidor (repostar). Las coloca js/ui.js. -->
+    <button class="hot car" id="hot-car" type="button" aria-label="Reparar el coche" title="Clic para reparar" hidden></button>
+    <button class="hot pump" id="hot-pump" type="button" aria-label="Repostar" title="Clic para repostar" hidden></button>
     <div class="bar-ctl" id="bar-ctl">
+      <button class="tb-btn svc" id="bar-repair" type="button" title="Reparar" aria-label="Reparar" hidden><span data-icon="llave" data-scale="1"></span><i class="mini"><b id="bar-repair-f"></b></i></button>
+      <button class="tb-btn svc" id="bar-refuel" type="button" title="Repostar" aria-label="Repostar" hidden><span data-icon="surtidor" data-scale="1"></span><i class="mini fuel"><b id="bar-refuel-f"></b></i></button>
       <button class="tb-btn" id="bar-go" type="button">A la carretera</button>
       <button class="tb-btn" id="bar-garage" type="button">Garaje</button>
       <button class="tb-btn" id="bar-quit" type="button" title="Salir">✕</button>
+    </div>
+  </div>
+
+  <!-- Servicio: estado del coche, siempre a la vista. En el garaje se repara y se reposta desde aquí o pinchando en el escenario. -->
+  <div class="service" id="service">
+    <div class="gauge hp" id="svc-hp">
+      <span class="gi" data-icon="corazon" data-scale="3"></span>
+      <div class="gm">
+        <div class="gt"><span class="gn">Aguante</span><span class="gv" id="svc-hp-v"></span></div>
+        <div class="gb"><i id="svc-hp-fill"></i></div>
+        <div class="gs" id="svc-hp-s"></div>
+      </div>
+      <button class="svc-btn" id="btn-repair" type="button" title="Cada clic es un golpe de llave. Clics seguidos hacen racha."><span data-icon="llave" data-scale="2"></span>Reparar</button>
+    </div>
+    <div class="gauge fuel" id="svc-fuel">
+      <span class="gi" data-icon="bidon" data-scale="3"></span>
+      <div class="gm">
+        <div class="gt"><span class="gn">Gasolina</span><span class="gv" id="svc-fuel-v"></span></div>
+        <div class="gb"><i id="svc-fuel-fill"></i></div>
+        <div class="gs" id="svc-fuel-s"></div>
+      </div>
+      <button class="svc-btn" id="btn-refuel" type="button" title="Cada clic es un bombeo. Clics seguidos hacen racha."><span data-icon="surtidor" data-scale="2"></span>Repostar</button>
     </div>
   </div>
 
@@ -54,12 +82,14 @@
   </section>
 </div>
 <script src="js/util.js"></script>
+<script src="js/icons.js"></script>
 <script src="js/audio.js"></script>
 <script src="js/data.js"></script>
 <script src="js/sprites.js"></script>
 <script src="js/world.js"></script>
 <script src="js/fx.js"></script>
 <script src="js/game.js"></script>
+<script src="js/service.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/shot.js"></script>
 <script src="js/main.js"></script>

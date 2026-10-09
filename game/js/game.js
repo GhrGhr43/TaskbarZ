@@ -10,7 +10,8 @@
     for (const s of Z.SLOTS) { const p = Z.PARTS[s.id][0]; owned[s.id] = { [p.id]: 0 }; eq[s.id] = p.id; }
     return {
       v: 1, money: 0, owned, eq, paint: 'medianoche', paints: ['medianoche', 'oxido'], decal: 'ninguna', decals: ['ninguna'],
-      garage: { mecanico: 0, chatarrero: 0, reserva: 0, chapista: 0 },
+      garage: { mecanico: 0, surtidor: 0, chatarrero: 0, reserva: 0, chapista: 0 },
+      svc: { hp: 1, fuel: 1 },  // estado del coche en el garaje (fracción de aguante y de gasolina)
       stats: { kills: 0, byType: {}, runs: 0, bestDist: 0, bestKills: 0, earned: 0, hordes: 0, partsBought: 0 },
       claimed: {}, rivals: {}, dir: 'ltr', auto: true, last: null, history: [],
     };
@@ -54,7 +55,6 @@
     return st;
   };
   Z.statsNow = () => Z.computeStats(S.eq, S.owned, S.garage);
-  Z.repairTime = () => Math.max(1.5, 7 * Math.pow(0.82, S.garage.mecanico));
 
   // ---------------- Estado de juego ----------------
   const G = Z.G = {
@@ -88,6 +88,7 @@
     ensureArt();
     G.mode = 'run'; G.camX = 0; G.zombies = []; G.crates = []; G.floats = []; FX.reset();
     G.car = newCar(); G.enter = 1; G.actor = null; G.death = null;
+    Z.Service.depart(G.car);  // sale con lo que se haya reparado y repostado
     let nights = {}; Z.NIGHTS.forEach(n => nights[n.id] = n.w);
     const nightId = Z.wpick(nights);
     G.night = S.stats.runs < 2 ? Z.NIGHTS[0] : (Z.NIGHTS.find(n => n.id === nightId) || Z.NIGHTS[0]);
@@ -461,14 +462,14 @@
     G.mode = 'garage'; G.camX = 0; G.zombies = []; G.crates = []; G.floats = []; FX.reset(); G.actor = null;
     const prevCar = G.car;
     G.car = newCar();
-    G.car.hp = first ? G.car.maxHp : 0; G.car.hpFrac = first ? 1 : 0;
     G.car.blood = first ? 0 : (prevCar ? prevCar.blood : 0);
     G.car.burnt = !first && prevCar && prevCar.burnt;
-    G.garage = { t: 0, repair: first ? 1 : 0, dur: Z.repairTime(), countdown: 3, launching: 0, door: 0, mx: 0 };
+    G.garage = { t: 0, repair: 1, fuel: 1, countdown: 3, launching: 0, door: 0, mx: 0 };
+    Z.Service.arrive(first ? null : prevCar);  // vuelve con la vida y la gasolina que le quedaban
     emit('mode');
   };
   Z.launch = function () {
-    if (G.mode !== 'garage' || G.garage.repair < 1 || G.garage.launching) return;
+    if (G.mode !== 'garage' || !Z.Service.canLaunch() || G.garage.launching) return;
     ensureArt();
     G.garage.launching = 0.001;
     sfx('motor_arranque'); if (!Z.overlay) sfx('puerta', { vol: 0.6 });
@@ -478,21 +479,16 @@
     // Tras cambiar piezas en el garaje: reconstruye el sprite y las estadísticas.
     if (G.mode !== 'garage') return;
     ensureArt();
-    const frac = G.car.hpFrac, blood = G.car.blood, burnt = G.car.burnt;
-    G.car = newCar(); G.car.hpFrac = frac; G.car.hp = G.car.maxHp * frac; G.car.blood = blood; G.car.burnt = burnt;
+    const blood = G.car.blood, burnt = G.car.burnt;
+    G.car = newCar(); G.car.blood = blood; G.car.burnt = burnt;
+    Z.Service.arrive(null);
   };
 
   function updateGarage(dt) {
     const g = G.garage, car = G.car;
     g.t += dt;
-    if (g.repair < 1) {
-      g.repair = Math.min(1, g.repair + dt / g.dur);
-      car.hpFrac = g.repair; car.hp = car.maxHp * g.repair;
-      car.blood = Math.max(0, car.blood - dt * 60);
-      if (g.repair > 0.3) car.burnt = false;
-      if (Math.random() < dt * 14) FX.sparks(garageCarX() + 10 + Math.abs(Math.sin(g.t * 0.6)) * (G.art.mw - 20), garageGround() - 6 - Math.random() * 6, 3, 0);
-      if (g.repair >= 1) Z.banner('Coche reparado', S.auto ? 'Sale solo en unos segundos' : 'Pulsa A la carretera', 'perk');
-    } else if (!g.launching && S.auto) {
+    Z.Service.update(dt);  // reparación y repostaje (automáticos o a clic): js/service.js
+    if (Z.Service.full() && !g.launching && S.auto) {
       const idle = G.t - G.lastInteract > 4;
       if (idle) { g.countdown -= dt; if (g.countdown <= 0) Z.launch(); }
       else g.countdown = 3;
@@ -503,10 +499,10 @@
       if (g.door >= 1) { car.speed = Math.min(200, car.speed + 260 * dt); g.mx += car.speed * dt; car.wheelRot += car.speed * dt / G.art.r; }
       if (g.mx > 320 && G.mode === 'garage') { G.mode = 'fadein-run'; G.fade = 0; }
     }
-    car.bounce = 0;
   }
   const garageCarX = () => (Z.overlay ? Z.CAR_X : Z.GOX + 260 - Math.round(G.art.mw / 2)) + Math.round(G.garage ? G.garage.mx : 0);
   const garageGround = () => Z.overlay ? Z.GROUND : 104;
+  Z.garageCarX = garageCarX; Z.garageGround = garageGround;
 
   // ---------------- Bucle ----------------
   Z.update = function (dt) {
@@ -691,16 +687,7 @@
     const cx = garageCarX(), gy = garageGround();
     ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(cx - 2, gy, art.mw + 4, 2);
     Z.drawCar(ctx, art, car, cx, gy, G.t);
-    // mecánico trabajando
-    if (g && g.repair < 1) {
-      const set = Z.SPR.mech[0];
-      const mx = cx - 10 + Math.abs(Math.sin(g.t * 0.6)) * (art.mw + 6);
-      const f = set.attack[Math.floor(g.t * 6) % set.attack.length].c;
-      ctx.save(); ctx.translate(Math.round(mx - set.cx + set.w), Math.round(gy + 10 - set.gy)); ctx.scale(-1, 1); ctx.drawImage(f, 0, 0); ctx.restore();
-      if (Math.sin(g.t * 20) > 0) lights.push({ x: mx + 6, y: gy - 8, r: 18, color: '#9ad0ff', a: 0.5 });
-      // barra de reparación
-      Z.rect(ctx, cx, gy + 16, art.mw, 3, '#1a1014'); Z.rect(ctx, cx, gy + 16, Math.round(art.mw * g.repair), 3, '#c0302a'); Z.rect(ctx, cx, gy + 16, Math.round(art.mw * g.repair), 1, '#ff6a4a');
-    }
+    if (g) Z.Service.draw(ctx, lights);  // surtidor, manguera, mecánico y golpes de llave
     FX.draw(ctx, 0, lights);
   }
 

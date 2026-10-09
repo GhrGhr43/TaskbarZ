@@ -106,10 +106,12 @@
   ];
 
   Z.GARAGE = [
-    { id: 'mecanico', name: 'Mecánico', desc: 'Repara el coche más rápido.', base: 80, growth: 1.7, max: 10 },
-    { id: 'chatarrero', name: 'Chatarrero', desc: '+10% dinero por cada zombi.', base: 150, growth: 1.8, max: 20 },
-    { id: 'reserva', name: 'Bidón de reserva', desc: '+10% combustible.', base: 120, growth: 1.75, max: 15 },
-    { id: 'chapista', name: 'Chapista', desc: '+8% aguante.', base: 200, growth: 1.8, max: 15 },
+    // icon: icono de js/icons.js. «mecanico» conserva su id para no romper partidas guardadas.
+    { id: 'mecanico', name: 'Herramientas', icon: 'llave', desc: 'El mecánico repara solo más deprisa y cada golpe de llave arregla más.', base: 60, growth: 1.65, max: 10 },
+    { id: 'surtidor', name: 'Surtidor', icon: 'surtidor', desc: 'Bombea gasolina solo más deprisa y cada bombeo llena más.', base: 50, growth: 1.65, max: 10 },
+    { id: 'chatarrero', name: 'Chatarrero', icon: 'moneda', desc: '+10% dinero por cada zombi.', base: 150, growth: 1.8, max: 20 },
+    { id: 'reserva', name: 'Bidón de reserva', icon: 'bidon', desc: '+10% combustible.', base: 120, growth: 1.75, max: 15 },
+    { id: 'chapista', name: 'Chapista', icon: 'martillo', desc: '+8% aguante.', base: 200, growth: 1.8, max: 15 },
   ];
   Z.garageCost = (g, lvl) => Math.ceil(g.base * Math.pow(g.growth, lvl));
 
