@@ -11,6 +11,7 @@ Idle roguelike postapocalíptico que vive encima de la barra de tareas. El coche
 ## Estructura
 - `game/`: el juego (HTML5 Canvas 512x128, JavaScript sin dependencias ni compilación). Las fuentes van incluidas en `game/fonts/` para que funcione sin internet.
 - `electron/`: envoltorio de escritorio (capa transparente sobre la barra de tareas, ventana del garaje y prueba de humo en `electron/smoke.js`).
+- `game/art/`: packs de arte. Todo el arte se puede sustituir por PNG sin tocar el código; cómo hacerlo en `docs/ARTE.md` (`npm run exportar-arte -- mi-pack` saca la plantilla para pintar encima).
 - `docs/STEAM.md`: lo que falta para poder sacarlo en Steam.
 
 ## Empaquetar

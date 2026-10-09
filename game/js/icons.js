@@ -263,6 +263,8 @@
   const cache = {}, urls = {};
   Z.iconCanvas = function (name) {
     if (cache[name]) return cache[name];
+    const own = Z.Art.image('icono.' + name);   // icono de un pack de arte (se usa tal cual, sin contorno)
+    if (own) return (cache[name] = own);
     const rows = ICONS[name];
     if (!rows) return null;
     const w = Math.max(...rows.map(r => r.length)), h = rows.length;

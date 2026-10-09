@@ -146,7 +146,8 @@
   //   · col: colores principales (los usan cadáveres y trozos: top, bottom, skin, hair, helmet…).
   //   · walk / attack / idle: listas de cuadros { c } con c = canvas o imagen, mirando a la izquierda.
   //   · stage(n): los mismos cuadros con heridas; n = 0 sano, 1 tocado, 2 destrozado (Z.WOUNDS).
-  // Un juego dibujado a mano solo tiene que devolver esa misma forma (p. ej. recortando una hoja de sprites).
+  // Un juego dibujado a mano solo tiene que devolver esa misma forma: js/art.js lo hace con las hojas de
+  // los packs de game/art/ (ranuras 'zombi.<tipo>' y 'humano.<tipo>', ver docs/ARTE.md).
   Z.WOUNDS = 3;
   const SPR = {};
   function makeSet(type, variant) {
@@ -192,8 +193,11 @@
     }
     SPR.driver = [makeSet('driver', 1)];
     SPR.mech = [makeSet('mech', 1)];
+    // Un pack de arte puede sustituir cualquiera de estos juegos (ranuras 'zombi.walker', 'humano.driver'...).
+    for (const t in SPR) SPR[t] = SPR[t].map((set, v) => Z.Art.actor(Z.actorSlot(t), v, set));
     Z.SPR = SPR;
   };
+  Z.actorSlot = (t) => (t === 'driver' || t === 'mech' ? 'humano.' : 'zombi.') + t;
 
   // Cadáver tumbado (se pinta en la capa de restos de la carretera).
   Z.drawCorpse = function (ctx, x, y, col, big, flip) {
@@ -239,11 +243,13 @@
     Z.outline(cv, RIM, 0.2);
     return cv;
   }
-  Z.wheelFrames = function (r, style) {
-    const key = r + style;
+  // Cuadros de la rueda girando. Un pack puede traer 'rueda.<estilo>@<chasis>' o 'rueda.<estilo>'.
+  Z.wheelFrames = function (r, style, chasis) {
+    const own = Z.Art.has('rueda.' + style + '@' + chasis) ? 'rueda.' + style + '@' + chasis : Z.Art.has('rueda.' + style) ? 'rueda.' + style : null;
+    const key = own || r + style;
     if (!WHEELS[key]) {
-      WHEELS[key] = [];
-      for (let i = 0; i < 8; i++) WHEELS[key].push(makeWheel(r, style, (i / 8) * (Math.PI * 2 / 5)));
+      WHEELS[key] = own ? Z.Art.strip(own) : [];
+      if (!own) for (let i = 0; i < 8; i++) WHEELS[key].push(makeWheel(r, style, (i / 8) * (Math.PI * 2 / 5)));
     }
     return WHEELS[key];
   };
@@ -342,9 +348,52 @@
   const isBody = ch => ch !== undefined && 'BMYCSRLU'.indexOf(ch) >= 0;
 
   // Construye el sprite compuesto del coche con sus piezas estáticas.
+  // Un pack de arte puede traer la carrocería ('coche.<chasis>'), cada pieza ('pieza.<hueco>.<id>[@<chasis>]')
+  // y cada pegatina ('pegatina.<id>[@<chasis>]'); lo que no traiga se dibuja con código.
+  const PART_SLOTS = ['blindaje', 'motor', 'deposito', 'techo', 'frontal'];
+  Z.CAR_PART_SLOTS = PART_SLOTS;
   Z.buildCar = function (eq, paintId, decalId) {
     const A = Z.CHASSIS_ART[eq.chasis];
     const paint = Z.PAINTS.find(p => p.id === paintId) || Z.PAINTS[0];
+    const P = Z.Art.get('coche.' + eq.chasis);
+    const over = {};
+    for (const slot of PART_SLOTS) {
+      const d = Z.Art.first('pieza.' + slot + '.' + eq[slot] + '@' + eq.chasis, 'pieza.' + slot + '.' + eq[slot]);
+      if (d) over[slot] = d;
+    }
+    let art = procBody(A, eq, paint);
+    if (P) art = packBody(P, art, eq, paint);
+    const ctx = art.canvas.getContext('2d');
+    const dec = Z.Art.first('pegatina.' + decalId + '@' + eq.chasis, 'pegatina.' + decalId);
+    if (dec) placeArt(ctx, art, dec, 'pegatina');
+    else if (!P || P.pegatinas !== false) drawDecal(ctx, art, decalId, paint);
+    drawParts(ctx, art, eq, over);
+    for (const slot of PART_SLOTS) if (over[slot]) {
+      const d = over[slot], at = placeArt(ctx, art, d, PART_AT[slot]);
+      if (d.boca) art.muzzle = [at[0] + d.boca[0], at[1] + d.boca[1]];
+      if (d.sierra) art.saw = [at[0] + d.sierra[0], at[1] + d.sierra[1]];
+    }
+    if (!P) Z.outline(art.canvas, RIM, 0.3);
+    finishCar(art, eq);
+    return art;
+  };
+  // Cuerpo del coche sin pegatina ni piezas (el exportador de plantillas también lo usa).
+  Z.carBody = function (eq, paintId) {
+    const paint = Z.PAINTS.find(p => p.id === paintId) || Z.PAINTS[0];
+    const art = procBody(Z.CHASSIS_ART[eq.chasis], eq, paint);
+    Z.outline(art.canvas, RIM, 0.3);
+    return art;
+  };
+  // Piezas de código sueltas sobre un lienzo vacío del tamaño del coche (para el exportador).
+  Z.carParts = function (art, eq) {
+    const [c, x] = Z.canvas(art.W, art.H);
+    const a = Object.assign({}, art, { canvas: c, muzzle: null, saw: null });
+    drawParts(x, a, eq, {});
+    Z.outline(c, RIM, 0.3);
+    return { canvas: c, muzzle: a.muzzle, saw: a.saw };
+  };
+
+  function procBody(A, eq, paint) {
     const map = A.map, mh = map.length, mw = Math.max(...map.map(r => r.length));
     const cell = (x, y) => (y < 0 || y >= mh) ? '.' : (map[y][x] || '.');
     const OX = 16, OY = 14;
@@ -398,15 +447,78 @@
       canvas: cv, W, H, OX, OY, mw, mh, r: A.r, paint,
       wheels: A.wheels.map(P), front: P(A.front), roof: P(A.roof), hood: P(A.hood), rear: P(A.rear), driver: P(A.driver),
       windows: A.windows.map(w => [w[0] + OX, w[1] + OY, w[2], w[3]]), contactY: A.wheels[0][1] + OY + A.r,
-      bodyPx, glassPx, eq,
+      plate: [A.plate[0] + OX, A.plate[1] + OY, A.plate[2], A.plate[3]], bodyPx, glassPx, eq,
     };
-    drawDecal(ctx, art, decalId, paint);
-    drawParts(ctx, art, eq);
-    Z.outline(cv, RIM, 0.3);
-    // Listas para daño, sangre y grietas (orden determinista).
-    const rnd = Z.rng(mw * 31 + mh);
-    art.dentPx = bodyPx.slice().sort(() => rnd() - 0.5);
-    art.bloodPx = bodyPx.slice().sort((a, b) => (b[0] - a[0]) + (b[1] - a[1]) * 0.5 + (rnd() - 0.5) * 12);
+    return art;
+  }
+
+  // Carrocería de un pack. Los puntos de anclaje que no traiga salen de la plantilla de código,
+  // así que una imagen del mismo tamaño que la plantilla encaja sin escribir ningún número.
+  const PT = { frontal: 'front', techo: 'roof', capo: 'hood', trasera: 'rear', conductor: 'driver' };
+  const PART_AT = { blindaje: 'origen', motor: 'capo', deposito: 'techo', techo: 'techo', frontal: 'frontal' };
+  function packBody(P, proc, eq, paint) {
+    let img = P.imagen;
+    if (!(img instanceof HTMLImageElement)) img = img[paint.id] || img._ || Object.values(img)[0];
+    const W = Math.max(img.width, proc.W), H = Math.max(img.height, proc.H);
+    const [cv, ctx] = Z.canvas(W, H);
+    ctx.drawImage(img, 0, 0);
+    if (P.pintura) ctx.drawImage(tint(P.pintura, paint.base), 0, 0);
+    if (P.acento) ctx.drawImage(tint(P.acento, paint.accent), 0, 0);
+    const pts = P.puntos || {};
+    const pt = (k) => (pts[k] || proc[PT[k]]).slice();
+    const r = P.radio || proc.r;
+    const wheels = (P.ruedas || proc.wheels).map(w => w.slice());
+    const [OX, OY] = P.origen || [proc.OX, proc.OY];
+    const art = {
+      canvas: cv, W, H, OX, OY, mw: P.largo || proc.mw, mh: P.alto || proc.mh, r, paint,
+      wheels, front: pt('frontal'), roof: pt('techo'), hood: pt('capo'), rear: pt('trasera'), driver: pt('conductor'),
+      windows: (P.ventanas || proc.windows).map(w => w.slice()), contactY: wheels[0][1] + r,
+      bodyPx: null, glassPx: [], eq, plate: P.placa || proc.plate, decalAt: pts.pegatina || null, fromPack: true,
+    };
+    art.bodyPx = opaquePx(ctx, W, H) || proc.bodyPx;
+    return art;
+  }
+  // Máscara en gris teñida con el color de la pintura elegida (multiplicar), conservando su transparencia.
+  function tint(mask, color) {
+    const [c, x] = Z.canvas(mask.width, mask.height);
+    x.drawImage(mask, 0, 0);
+    x.globalCompositeOperation = 'multiply'; x.fillStyle = color; x.fillRect(0, 0, c.width, c.height);
+    x.globalCompositeOperation = 'destination-in'; x.drawImage(mask, 0, 0);
+    return c;
+  }
+  // Píxeles de chapa para abolladuras y sangre: lo opaco sin el borde exterior (el contorno).
+  function opaquePx(ctx, W, H) {
+    try {
+      const d = ctx.getImageData(0, 0, W, H).data, out = [];
+      const op = (x, y) => x >= 0 && y >= 0 && x < W && y < H && d[(y * W + x) * 4 + 3] > 0;
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (op(x, y) && op(x - 1, y) && op(x + 1, y) && op(x, y - 1) && op(x, y + 1)) out.push([x, y]);
+      return out.length ? out : null;
+    } catch (e) { return null; }
+  }
+  function decalPoint(art) {
+    if (art.decalAt) return art.decalAt;
+    const pl = art.windows.length ? art.windows[art.windows.length - 1] : [art.W / 2, art.OY + 2, 4, 2];
+    return [Math.round(pl[0] + 1), Math.round(art.contactY - art.r - 8)];
+  }
+  // Coloca una imagen del pack sobre el coche: en 'pos' exacta, o con su 'ancla' sobre un punto ('en').
+  function placeArt(ctx, art, d, en) {
+    const img = d.imagen || d;
+    let at;
+    if (d.pos) at = d.pos.slice();
+    else {
+      const name = d.en || en;
+      const p = name === 'origen' ? [0, 0] : name === 'pegatina' ? decalPoint(art) : art[PT[name]];
+      const a = d.ancla || [0, 0];
+      at = [p[0] - a[0], p[1] - a[1]];
+    }
+    ctx.drawImage(img, at[0], at[1]);
+    return at;
+  }
+  // Listas para daño, sangre y grietas (orden determinista).
+  function finishCar(art, eq) {
+    const rnd = Z.rng(art.mw * 31 + art.mh);
+    art.dentPx = art.bodyPx.slice().sort(() => rnd() - 0.5);
+    art.bloodPx = art.bodyPx.slice().sort((a, b) => (b[0] - a[0]) + (b[1] - a[1]) * 0.5 + (rnd() - 0.5) * 12);
     art.cracks = [];
     for (const w of art.windows) {
       let x = w[0] + Math.floor(rnd() * w[2]), y = w[1];
@@ -416,9 +528,8 @@
         if (y >= w[1] + w[3] || x < w[0] || x >= w[0] + w[2]) { x = w[0] + Math.floor(rnd() * w[2]); y = w[1]; }
       }
     }
-    art.wheelFrames = Z.wheelFrames(A.r + (eq.ruedas === 'militares' ? 1 : 0), eq.ruedas);
-    return art;
-  };
+    art.wheelFrames = Z.wheelFrames(art.r + (eq.ruedas === 'militares' ? 1 : 0), eq.ruedas, eq.chasis);
+  }
 
   function drawDecal(ctx, art, id, paint) {
     const pl = art.windows.length ? art.windows[art.windows.length - 1] : [art.W / 2, art.OY + 2, 4, 2];
@@ -435,10 +546,15 @@
     }
   }
 
-  function drawParts(ctx, art, eq) {
+  // Los huecos que trae el pack (skip) se pintan en un lienzo de descarte: así la boca del arma
+  // y la sierra se siguen calculando aunque el dibujo venga del pack.
+  const SINK = Z.canvas(1, 1)[1];
+  function drawParts(ctx, art, eq, skip) {
+    const real = ctx;
     const [fx, fy] = art.front, [rx, ry] = art.roof, [hx, hy] = art.hood, [bx, by] = art.rear;
     const steel = '#7d8091', steelL = '#cfd2dc', steelD = '#3c3f4c', iron = '#4a3c36', rust = '#8a4a2a';
     // Blindaje
+    ctx = skip.blindaje ? SINK : real;
     if (eq.blindaje === 'chapas' || eq.blindaje === 'placas') {
       for (const [x, y, w, h] of art.windows) {
         const yy = y + Math.max(1, Math.floor(h / 3));
@@ -453,8 +569,7 @@
       for (const [x, y, w] of art.windows) Z.rect(ctx, x, y + 1, w, 1, '#55525c');
     }
     if (eq.blindaje === 'placas') {
-      const st = Z.CHASSIS_ART[eq.chasis];
-      const [px0, py0, pw, ph] = [st.plate[0] + art.OX, st.plate[1] + art.OY, st.plate[2], st.plate[3]];
+      const [px0, py0, pw, ph] = art.plate;
       for (let y = py0 + Math.floor(ph / 2); y < py0 + ph; y++) for (let x = px0; x < px0 + pw; x++) {
         if (art.wheels.some(w => Math.hypot(x - w[0], y - w[1]) < art.r + 1.6)) continue;
         Z.px(ctx, x, y, (x + y) & 1 ? '#4b4d57' : '#575a65');
@@ -464,6 +579,7 @@
       for (let x = px0 + 2; x < px0 + pw; x += 6) if (!art.wheels.some(w => Math.abs(x - w[0]) < art.r + 2)) Z.px(ctx, x, ty + 1, '#23242c');
     }
     // Motor: escape / compresor / turbina
+    ctx = skip.motor ? SINK : real;
     if (eq.motor === 'v6') Z.rect(ctx, bx - 3, by + 1, 3, 1, '#9a96a4');
     if (eq.motor === 'v8') {
       Z.rect(ctx, hx - 2, hy - 3, 5, 3, '#8a8a96'); Z.rect(ctx, hx - 2, hy - 3, 5, 1, '#cfd0d8');
@@ -475,6 +591,7 @@
       Z.rect(ctx, bx - 8, by - 2, 1, 3, '#1a1a22'); Z.rect(ctx, bx - 3, by - 2, 1, 3, '#8a4a2a');
     }
     // Depósito
+    ctx = skip.deposito ? SINK : real;
     if (eq.deposito === 'bidones') {
       for (let i = 0; i < 2; i++) { Z.rect(ctx, rx - 9 + i * 4, ry - 4, 3, 4, '#8a2a20'); Z.rect(ctx, rx - 9 + i * 4, ry - 4, 3, 1, '#c04a30'); Z.px(ctx, rx - 8 + i * 4, ry - 5, '#3a3a40'); }
     }
@@ -486,6 +603,7 @@
       for (let x = rx - 13; x < rx - 1; x += 3) Z.px(ctx, x, ry - 2, '#d8b020');
     }
     // Arma de techo (montura; el fogonazo se dibuja en tiempo real)
+    ctx = skip.techo ? SINK : real;
     if (eq.techo === 'escopeta') {
       Z.rect(ctx, rx - 2, ry - 2, 4, 2, '#2a2830'); Z.rect(ctx, rx + 1, ry - 4, 8, 1, '#5a5a66'); Z.rect(ctx, rx - 1, ry - 3, 3, 1, '#6a4a2a');
       art.muzzle = [rx + 9, ry - 4];
@@ -500,6 +618,7 @@
       art.muzzle = [rx + 9, ry - 3];
     }
     // Frontal
+    ctx = skip.frontal ? SINK : real;
     if (eq.frontal === 'pinchos') {
       Z.rect(ctx, fx - 1, fy - 4, 2, 9, '#2a2830');
       for (let i = 0; i < 3; i++) {

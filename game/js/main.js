@@ -15,10 +15,6 @@
   };
   Z.setOverlay(false);
 
-  Z.zombieSprites();
-  Z.UI.init();
-  Z.enterGarage(true);
-
   let last = performance.now(), saveT = 0, uiT = 0;
   // Ahorro de recursos: en la barra basta con 30 fotogramas por segundo (15 si el coche está en el garaje).
   Z.fpsCap = () => (Z.overlay ? (G.mode === 'garage' ? 15 : 30) : 60);
@@ -36,6 +32,12 @@
     saveT -= dt; if (saveT <= 0) { saveT = 5; Z.save(); }
     requestAnimationFrame(frame);
   }
-  requestAnimationFrame(frame);
+  // Arranca cuando los packs de arte (si hay) están cargados: los sprites se construyen ya con su arte.
+  Z.Art.ready(() => {
+    Z.zombieSprites();
+    Z.UI.init();
+    Z.enterGarage(true);
+    requestAnimationFrame(frame);
+  });
   window.addEventListener('beforeunload', () => Z.save());
 })(window.ZG);
