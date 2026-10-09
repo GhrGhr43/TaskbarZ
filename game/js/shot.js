@@ -18,17 +18,20 @@
   const overButton = (e) => { const el = document.elementFromPoint(e.clientX, e.clientY); return !!(el && el.closest('button')); };
   const setThrough = (on) => { if (on !== through) { through = on; if (desk) desk.setClickThrough(on); } };
   const disarm = () => { S.armed = false; hold = 0; };
+  // El arma del tirador también se queda el clic cuando el ratón está encima de un zombi (js/weapons.js).
+  let overBtn = false;
+  const claimed = () => !!(Z.Gun && Z.Gun.claims(px, py));
 
   document.addEventListener('mousemove', (e) => {
     if (!Z.overlay) return;
     [px, py] = toGame(e);
     inside = true;
-    const btn = overButton(e);
+    const btn = overBtn = overButton(e);
     if (Math.abs(px - ax) > 2 || Math.abs(py - ay) > 2) {
       if (!S.armed || Math.abs(px - ax) > 5 || Math.abs(py - ay) > 5) { disarm(); ax = px; ay = py; spent = false; }
     }
     if (btn || py < barTop()) disarm();
-    setThrough(!(btn || S.armed));
+    setThrough(!(btn || S.armed || claimed()));
   });
   document.addEventListener('mouseleave', () => { inside = false; disarm(); setThrough(true); });
 
@@ -56,6 +59,7 @@
 
   async function fire(cx, cy) {
     cx = Math.round(cx); cy = Math.round(cy);
+    if (Z.Gun) Z.Gun.fxShot(cx, cy);   // el tirador apunta y dispara al icono
     const floor = out.height - 1;
     S.flashes.push({ x: cx, y: cy, life: 0.12 });
     const data = await (S.pending || Promise.resolve(null));
@@ -100,6 +104,7 @@
       hold += dt;
       if (hold >= HOLD) { S.armed = true; setThrough(false); S.pending = grab(ax, ay); }   // la copia se hace al fijar la mira
     }
+    if (Z.overlay && inside) setThrough(!(overBtn || S.armed || claimed()));   // los zombis pasan bajo el ratón quieto
     if (!Z.overlay) { disarm(); S.parts.length = 0; S.holes.length = 0; S.stains.length = 0; return; }
     for (const h of S.holes) {
       h.life -= dt;

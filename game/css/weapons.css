@@ -1,0 +1,22 @@
+/* Armas del tirador: botones del escenario, mira y tarjetas de la tienda. */
+
+/* Ventanilla y autodisparo: botones pequeños en una esquina del escenario, casi transparentes hasta que pasas por encima */
+.gun-ctl { position: absolute; right: 1.5%; bottom: 5%; display: flex; gap: 4px; opacity: 0.55; transition: opacity 0.15s; }
+.gun-ctl:hover, .gun-ctl:focus-within { opacity: 1; }
+#stage.rtl .gun-ctl { right: auto; left: 1.5%; }
+.gun-ctl .tb-btn { display: grid; place-items: center; padding: 3px 5px; background: rgba(21,16,22,0.85); color: var(--bone); line-height: 1; }
+.gun-ctl .gun-view svg { display: block; width: 28px; height: 14px; }
+.gun-ctl .gun-auto { font-size: 9px; }
+.gun-ctl [hidden] { display: none; }
+
+/* En la barra de tareas van dentro de la fila de botones de la barra */
+body.overlay .gun-ctl { position: static; opacity: 1; }
+body.overlay .gun-ctl .tb-btn { padding: 2px 4px; }
+body.overlay .gun-ctl .gun-view svg { width: 21px; height: 11px; }
+
+/* Mira: en la ventana durante la carrera; en la barra solo encima de un zombi (ahí el clic es del juego) */
+#stage.gun-live #screen { cursor: crosshair; }
+body.overlay.gun-aim, body.overlay.gun-aim #screen { cursor: crosshair; }
+
+/* Tienda */
+.part.gun .gun-ico { display: block; image-rendering: pixelated; image-rendering: crisp-edges; flex: none; filter: drop-shadow(0 1px 0 #000); }

@@ -14,6 +14,7 @@
       svc: { hp: 1, fuel: 1 },  // estado del coche en el garaje (fracción de aguante y de gasolina)
       stats: { kills: 0, byType: {}, runs: 0, bestDist: 0, bestKills: 0, earned: 0, hordes: 0, partsBought: 0 },
       claimed: {}, rivals: {}, dir: 'ltr', auto: true, last: null, history: [],
+      gun: { owned: { pistola: 0 }, eq: 'pistola', view: 'front', auto: false, autoOn: true, autoLvl: 0 },
     };
   }
   function load() {
@@ -546,6 +547,7 @@
       Z.Weather.update(dt, 'none', null, 0);
     }
     if (G.fadingIn && G.mode === 'run') { G.fade = Math.max(0, G.fade - dt * 2); if (G.fade <= 0) G.fadingIn = false; }
+    Z.Gun.update(dt);
     FX.update(dt);
   };
 
@@ -661,7 +663,8 @@
     const cx = carScreenX();
     const groundY = Z.GROUND + Math.round(car.y || 0);
     ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(cx - 2, Z.GROUND, art.mw + 4, 2);
-    Z.drawCar(ctx, art, car, cx, groundY, G.t);
+    const at = Z.drawCar(ctx, art, car, cx, groundY, G.t);
+    Z.Gun.draw(ctx, art, car, at.ox, at.oy);
     if (!car.dead) {
       const fx = cx + (art.front[0] - art.OX) - 2, fy = Z.GROUND - art.contactY + art.front[1] - 1;
       ctx.globalCompositeOperation = 'lighter';
@@ -686,10 +689,12 @@
     else Z.drawGarage(ctx, G.t, lights, g ? g.door : 0);
     const cx = garageCarX(), gy = garageGround();
     ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(cx - 2, gy, art.mw + 4, 2);
-    Z.drawCar(ctx, art, car, cx, gy, G.t);
+    const at = Z.drawCar(ctx, art, car, cx, gy, G.t);
+    Z.Gun.draw(ctx, art, car, at.ox, at.oy);
     if (g) Z.Service.draw(ctx, lights);  // surtidor, manguera, mecánico y golpes de llave
     FX.draw(ctx, 0, lights);
   }
 
   Z.carScreenX = carScreenX;
+  Z.killZombie = killZombie;
 })(window.ZG);
