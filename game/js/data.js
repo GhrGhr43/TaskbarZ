@@ -4,15 +4,17 @@
   Z.ZONES = [
     { id: 'afueras', name: 'Las Afueras', sub: 'Donde empezó todo', start: 0, hp: 1, dmg: 1, money: 1, density: 1,
       mix: { walker: 1 } },
-    { id: 'autopista', name: 'La Autopista Muerta', sub: 'Kilómetros de chatarra y gente que no se fue', start: 700, hp: 2.2, dmg: 1.8, money: 3, density: 1.15,
+    { id: 'autopista', name: 'La Autopista Muerta', sub: 'Kilómetros de chatarra y gente que no se fue', start: 1200, hp: 2.2, dmg: 1.8, money: 3, density: 1.15,
       mix: { walker: 0.6, runner: 0.3, bloater: 0.1 } },
-    { id: 'ciudad', name: 'Ciudad Ceniza', sub: 'Todavía arde', start: 1800, hp: 5, dmg: 3.2, money: 8, density: 1.3,
+    { id: 'ciudad', name: 'Ciudad Ceniza', sub: 'Todavía arde', start: 3200, hp: 5, dmg: 3.2, money: 8, density: 1.3,
       mix: { walker: 0.45, runner: 0.3, bloater: 0.12, riot: 0.13 } },
-    { id: 'desierto', name: 'El Páramo Rojo', sub: 'Aquí la gasolina vale más que la sangre', start: 3500, hp: 11, dmg: 5.5, money: 20, density: 1.45,
+    { id: 'desierto', name: 'El Páramo Rojo', sub: 'Aquí la gasolina vale más que la sangre', start: 6200, hp: 11, dmg: 5.5, money: 20, density: 1.45,
       mix: { runner: 0.45, walker: 0.25, bloater: 0.1, riot: 0.16, brute: 0.04 } },
-    { id: 'zonacero', name: 'Zona Cero', sub: 'La catedral de los muertos', start: 6000, hp: 25, dmg: 9, money: 50, density: 1.6,
+    { id: 'zonacero', name: 'Zona Cero', sub: 'La catedral de los muertos', start: 10500, hp: 25, dmg: 9, money: 50, density: 1.6,
       mix: { runner: 0.4, walker: 0.2, bloater: 0.12, riot: 0.2, brute: 0.08 } },
   ];
+  // Largo total del mapa para la barra de progreso (la última zona no tiene fin).
+  Z.TRACK_MAX = 17000;
   Z.zoneAt = function (m) {
     let z = 0;
     for (let i = 0; i < Z.ZONES.length; i++) if (m >= Z.ZONES[i].start) z = i;
@@ -20,8 +22,8 @@
   };
 
   Z.ZTYPES = {
-    walker:  { name: 'Caminante',      hp: 10,  speed: 9,  reward: 1,  impact: 5,  dps: 6,  mass: 1 },
-    runner:  { name: 'Corredor',       hp: 7,   speed: 30, reward: 2,  impact: 4,  dps: 5,  mass: 0.8 },
+    walker:  { name: 'Caminante',      hp: 12,  speed: 9,  reward: 1,  impact: 6,  dps: 6,  mass: 1 },
+    runner:  { name: 'Corredor',       hp: 9,   speed: 32, reward: 2,  impact: 5,  dps: 5,  mass: 0.8 },
     bloater: { name: 'Gordo',          hp: 45,  speed: 6,  reward: 6,  impact: 9,  dps: 4,  mass: 2.2, acid: 14 },
     riot:    { name: 'Antidisturbios', hp: 90,  speed: 10, reward: 12, impact: 14, dps: 8,  mass: 2 },
     brute:   { name: 'Bruto',          hp: 320, speed: 13, reward: 45, impact: 30, dps: 20, mass: 6 },
@@ -128,16 +130,16 @@
 
   // Rivales del juego (personajes ficticios con su récord). Superarlos da recompensa.
   Z.RIVALS = [
-    { name: 'Chispas', dist: 260, reward: 40 },
-    { name: 'La Monja', dist: 520, reward: 90 },
-    { name: 'Doc Tornillo', dist: 900, reward: 250 },
-    { name: 'Hermanos Ruiz', dist: 1400, reward: 600 },
-    { name: 'Viuda Negra', dist: 2100, reward: 1500 },
-    { name: 'Toro', dist: 3000, reward: 4000 },
-    { name: 'El Predicador', dist: 4200, reward: 10000 },
-    { name: 'Reina del Asfalto', dist: 5600, reward: 25000 },
-    { name: 'El Coleccionista', dist: 7500, reward: 60000 },
-    { name: 'Leyenda Sin Nombre', dist: 10000, reward: 150000 },
+    { name: 'Chispas', dist: 450, reward: 40 },
+    { name: 'La Monja', dist: 1600, reward: 90 },
+    { name: 'Doc Tornillo', dist: 1600, reward: 250 },
+    { name: 'Hermanos Ruiz', dist: 2500, reward: 600 },
+    { name: 'Viuda Negra', dist: 3700, reward: 1500 },
+    { name: 'Toro', dist: 5200, reward: 4000 },
+    { name: 'El Predicador', dist: 7300, reward: 10000 },
+    { name: 'Reina del Asfalto', dist: 9700, reward: 25000 },
+    { name: 'El Coleccionista', dist: 13000, reward: 60000 },
+    { name: 'Leyenda Sin Nombre', dist: 17000, reward: 150000 },
   ];
 
   // Objetivos: prog(s) devuelve [actual, meta].

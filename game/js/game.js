@@ -63,6 +63,7 @@
     lastInteract: -99, actor: null, death: null, garage: null, enter: 0, events: [],
   };
   const emit = (type, data) => G.events.push({ type, data });
+  const sfx = (name, o) => { if (Z.Audio) Z.Audio.play(name, o); };
   Z.banner = (text, sub, kind) => emit('banner', { text, sub, kind });
 
   let artKey = '';
@@ -98,12 +99,18 @@
     emit('mode');
   };
 
-  const SEQ = [1, 2, 3, 5, 7, 10, 14, 19];
+  const SEQ = [1, 2, 3, 4, 6, 8, 11, 15, 20, 26];
   function density() { return Z.ZONES[G.zone].density * G.night.spawn * (1 + 0.22 * G.dir.cycle); }
 
+  // Dentro de cada zona, los zombis se endurecen según avanzas (hasta +60% al final de la zona).
+  function zoneRamp() {
+    const z = Z.ZONES[G.zone], next = Z.ZONES[G.zone + 1];
+    const len = next ? next.start - z.start : 6000;
+    return 1 + 0.6 * Math.min(1, Math.max(0, (G.run.dist - z.start) / len));
+  }
   function spawnZombie(type, wx, y, dir) {
     const zt = Z.ZTYPES[type], zone = Z.ZONES[G.zone];
-    const hpMul = zone.hp * G.night.hp * (1 + 0.1 * G.dir.cycle) * (1 + Math.max(0, G.run.dist - 6000) / 4000);
+    const hpMul = zone.hp * G.night.hp * (1 + 0.1 * G.dir.cycle) * (1 + Math.max(0, G.run.dist - 10500) / 4000) * zoneRamp();
     const z = {
       type, v: Z.ri(0, 3), wx, y, hp: zt.hp * hpMul, maxHp: zt.hp * hpMul, spd: zt.speed * Z.rr(0.8, 1.2), phase: Math.random(),
       m: zt.mass, impact: zt.impact * zone.dmg, dps: zt.dps * zone.dmg, reward: zt.reward * zone.money,
@@ -143,9 +150,9 @@
       spawnGroup(n);
       d.step++;
       d.next = dist + Z.rr(38, 62);
-      if (d.step === SEQ.length) { Z.banner('LA HORDA SE ACERCA', 'Ruge el motor', 'horde'); d.next = dist + 45; }
+      if (d.step === SEQ.length) { Z.banner('LA HORDA SE ACERCA', 'Ruge el motor', 'horde'); sfx('alarma'); sfx('gemido', { vol: 1.5, delay: 0.5 }); d.next = dist + 45; }
     } else {
-      const total = Math.round(26 * density());
+      const total = Math.round(34 * density());
       d.horde = { left: total, total, next: dist };
     }
   }
@@ -162,9 +169,11 @@
     S.stats.kills++; S.stats.byType[z.type] = (S.stats.byType[z.type] || 0) + 1;
     addFloat(z.wx, z.y - 22, '+$' + Z.fmt(Math.max(1, reward)), '#ffd25a');
     const col = Z.SPR[z.type][z.v].col;
+    sfx('muerte_zombi', { pitch: z.type === 'brute' ? 0.55 : z.type === 'bloater' ? 0.75 : 1, vol: 0.7, gap: 0.04 });
+    sfx('moneda', { vol: 0.25, gap: 0.09 });
     FX.gore(z, vx, col, z.type === 'brute');
     if (z.type === 'bloater') {
-      FX.blood(z.wx, z.y - 10, 40, vx * 0.5, z.y, ['#6a8a1a', '#9ac02a', '#c8e050']);
+      FX.blood(z.wx, z.y - 10, 40, vx * 0.5, z.y, ['#6a8a1a', '#9ac02a', '#c8e050']); sfx('chof', { pitch: 0.6 });
       if (Math.abs(z.wx - carFront()) < 26 && !car.dead) { damageCar(Z.ZTYPES.bloater.acid * Z.ZONES[G.zone].dmg); addFloat(z.wx, z.y - 30, '-' + Math.round(Z.ZTYPES.bloater.acid * Z.ZONES[G.zone].dmg), '#9ac02a'); }
     }
     if (z.type === 'brute') { G.hitstop = 0.09; G.shake = Math.max(G.shake, 4); }
@@ -176,6 +185,7 @@
     if (car.dead) return;
     car.hp -= n * (1 - car.st.armor);
     car.bump = 1.5;
+    if (n > 3) sfx('golpe', { vol: Math.min(1, 0.3 + n / 30), gap: 0.07 });
     if (n > 3 && Math.random() < 0.5) FX.sparks(carFront(), Z.GROUND - 6, 3, -20);
   }
 
@@ -191,6 +201,7 @@
       if (!inRange.length) return;
       for (let i = 0; i < 4; i++) FX.add({ k: 'fire', x: mwx + Z.rr(0, 4), y: my + Z.rr(-1, 1), vx: Z.rr(140, 220) + car.speed, vy: Z.rr(-10, 35), g: 0, life: Z.rr(0.25, 0.4), max: 0.4 });
       G.lights.push({ x: mwx - G.camX + 20, y: my + 6, r: 50, color: '#ff8a30', a: 0.45 });
+      sfx('explosion', { vol: 0.08, pitch: 2.5, gap: 0.25 });
       for (const z of inRange) { z.hp -= st.fire * mul * dt; z.burn = 2.5; if (z.hp <= 0) killZombie(z, 60); }
       return;
     }
@@ -208,6 +219,7 @@
       if (z.hp <= 0) killZombie(z, 90);
     }
     FX.add({ k: 'flash', x: mwx + 1, y: my, life: 0.05, s: st.pellets > 1 ? 2.5 : 1.6 });
+    sfx(st.pellets > 1 ? 'escopeta' : st.rate > 4 ? 'metralla' : 'disparo', { vol: 0.55 });
   }
 
   function updateZombies(dt) {
@@ -249,7 +261,7 @@
           const hit = car.st.dmg * (car.perks.filo > 0 ? 2 : 1) * (0.5 + car.speed / Math.max(1, car.st.speed)) * (0.8 + car.st.mass * 0.2);
           z.hp -= hit; z.hitT = 0.1;
           car.speed *= 1 - Math.min(0.6, z.m * 0.05 * (1 - car.st.grip) / car.st.mass);
-          if (z.hp <= 0) { killZombie(z, 80 + car.speed * 1.4); car.bump = 1; damageCar(z.impact * 0.2); continue; }
+          if (z.hp <= 0) { killZombie(z, 80 + car.speed * 1.4); car.bump = 1; damageCar(z.impact * 0.3); continue; }
           damageCar(z.impact); FX.blood(front, z.y - 10, 8, 50, z.y);
           z.pushed = true; z.atk = true;
           continue;
@@ -276,7 +288,7 @@
       const c = G.crates[i];
       if (!G.car.dead && c.wx - 4 <= front) {
         G.crates.splice(i, 1);
-        FX.debris(c.wx, c.y - 4, 12, ['#6a4a2a', '#8a6038', '#3a2818']);
+        FX.debris(c.wx, c.y - 4, 12, ['#6a4a2a', '#8a6038', '#3a2818']); sfx('golpe', { pitch: 1.6 }); sfx('moneda', { delay: 0.08 });
         const p = Z.pick(Z.PERKS), car = G.car;
         if (p.id === 'kit') car.hp = Math.min(car.maxHp, car.hp + car.maxHp * 0.35);
         else if (p.id === 'bidon') car.fuel = Math.min(car.maxFuel * 1.3, car.fuel + car.maxFuel * 0.3);
@@ -293,13 +305,14 @@
       G.prevZone = G.zone; G.zone = z; G.zoneFade = 0; r.zone = z;
       // Zona nueva: se acaba la presión, cambian los zombis y vuelven a llegar de menos a más.
       G.dir.horde = null; G.dir.step = 0; G.dir.next = d + 70;
-      Z.banner(Z.ZONES[z].name, Z.ZONES[z].sub, 'zone');
+      Z.banner(Z.ZONES[z].name, Z.ZONES[z].sub, 'zone'); sfx('zona');
     }
     for (const rv of Z.RIVALS) {
       if (d >= rv.dist && !r.passed[rv.name]) {
         r.passed[rv.name] = true;
         if (!S.rivals[rv.name]) {
           S.rivals[rv.name] = true; S.money += rv.reward;
+          sfx('compra');
           Z.banner('Has superado a ' + rv.name, '+$' + Z.fmt(rv.reward), 'rival');
         }
       }
@@ -348,6 +361,7 @@
     if (kind === 'flip' && car.speed < 15) kind = 'eaten';
     G.death = { kind, cause, t: 0, word: false, endAt: 5.5, step: 0 };
     for (const zz of G.zombies) zz.pushed = false;
+    sfx(kind === 'flip' ? 'choque' : kind === 'explode' ? 'alarma' : 'grito', { pitch: kind === 'flee' ? 1.15 : 1 });
     if (kind === 'flip') {
       const art = G.art; G.death.landY = -((art.contactY - art.OY) - 8) - 1;
       const a = 150, b = -95, c = -G.death.landY; const tl = (-b + Math.sqrt(b * b - 4 * a * c)) / (2 * a);
@@ -398,7 +412,7 @@
         if (d.t > 1.4) {
           d.step = 1; car.burnt = true; car.driverIn = false;
           const cx = G.camX + carScreenX() + art.mw / 2;
-          FX.explosion(cx, Z.GROUND - 8, 1.6);
+          FX.explosion(cx, Z.GROUND - 8, 1.6); sfx('explosion'); sfx('grito', { delay: 0.2, vol: 0.6 });
           G.flash = 0.7; G.flashCol = '#fff2d0'; G.shake = 9; G.hitstop = 0.12;
           FX.debris(cx, Z.GROUND - 10, 18, ['#5d5a63', art.paint.base, '#2a2830', '#8a8692']);
           for (let i = 0; i < 2; i++) FX.add({ k: 'wheel', img: art.wheelFrames[0], x: cx + (i ? 18 : -18), y: Z.GROUND - 6, vx: i ? 90 : -40, vy: -170, g: 320, life: 4, gy: Z.GROUND + 2 });
@@ -457,6 +471,7 @@
     if (G.mode !== 'garage' || G.garage.repair < 1 || G.garage.launching) return;
     ensureArt();
     G.garage.launching = 0.001;
+    sfx('motor_arranque'); if (!Z.overlay) sfx('puerta', { vol: 0.6 });
     if (Z.overlay) G.garage.door = 1;
   };
   Z.refreshCar = function () {
@@ -518,12 +533,20 @@
         if (G.fade >= 1) { finishRun(); Z.enterGarage(false); G.mode = 'fadein-garage'; }
       }
       updateZombies(dt);
+      if (Z.Audio) {
+        const car = G.car;
+        Z.Audio.engine(!car.dead && car.fuel > 0, Math.min(1, car.speed / Math.max(1, car.st.speed)));
+        const near = G.zombies.filter(z => !z.dead && Math.abs(z.wx - carFront()) < 140).length;
+        if (near && Math.random() < dt * Math.min(1.5, near * 0.15)) sfx('gemido', { vol: 0.8, gap: 0.6 });
+        if (G.mode !== 'run' && G.zombies.some(z => z.atk) && Math.random() < dt * 3) sfx('mordisco', { vol: 0.6, gap: 0.2 });
+      }
       const w = Z.Weather.update(dt, G.night.id, Z.zoneArt(G.zone), G.car.speed);
       if (w === 'flash') { G.flash = 0.35; G.flashCol = '#dfe6ff'; }
     } else if (G.mode === 'garage' || G.mode === 'fadein-garage' || G.mode === 'fadein-run') {
       if (G.mode === 'fadein-garage') { G.fade = Math.max(0, G.fade - dt * 1.4); if (G.fade <= 0) G.mode = 'garage'; }
       if (G.mode === 'fadein-run') { G.fade = Math.min(1, G.fade + dt * 2.5); if (G.fade >= 1) { Z.startRun(); G.fade = 1; G.fadingIn = true; } }
       updateGarage(dt);
+      if (Z.Audio) Z.Audio.engine(!!G.garage.launching, 0.6);
       Z.Weather.update(dt, 'none', null, 0);
     }
     if (G.fadingIn && G.mode === 'run') { G.fade = Math.max(0, G.fade - dt * 2); if (G.fade <= 0) G.fadingIn = false; }

@@ -142,6 +142,7 @@
     touch();
     const slot = el.dataset.slot, id = el.dataset.id;
     if (a !== 'reset') UI.confirmReset = false;
+    const before = S.money;
     if (a === 'buy') { const p = Z.part(slot, id); if (S.money >= p.cost) { S.money -= p.cost; S.owned[slot][id] = 0; S.eq[slot] = id; S.stats.partsBought++; } }
     else if (a === 'equip') S.eq[slot] = id;
     else if (a === 'up') { const p = Z.part(slot, id), l = S.owned[slot][id], c = Z.upgradeCost(p, l); if (S.money >= c && l < Z.MAX_LVL) { S.money -= c; S.owned[slot][id]++; } }
@@ -154,6 +155,10 @@
     else if (a === 'reset') {
       if (!UI.confirmReset) { UI.confirmReset = true; UI.refresh(); return; }
       UI.confirmReset = false; Z.resetSave(); Z.enterGarage(true); applyToggles();
+    }
+    if (Z.Audio) {
+      const buying = a === 'buy' || a === 'up' || a === 'garage' || a === 'buypaint' || a === 'buydecal';
+      Z.Audio.play(S.money < before ? 'compra' : buying ? 'error' : a === 'claim' ? 'moneda' : 'llave');
     }
     UI.hover = null;
     Z.refreshCar(); Z.save(); UI.refresh();
@@ -224,7 +229,7 @@
     if (ev.type === 'mode') { if (deathShown && G.mode === 'run') { $('deathcard').classList.remove('show'); deathShown = false; } UI.refresh(); }
   };
 
-  const TRACK_MAX = 10000;
+  const TRACK_MAX = Z.TRACK_MAX || 10000;
   const tpos = (m) => { const p = Math.sqrt(Math.min(m, TRACK_MAX) / TRACK_MAX) * 100; return S.dir === 'rtl' ? 100 - p : p; };
   let trackSig = '';
   function renderTrack() {
