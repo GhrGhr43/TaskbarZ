@@ -71,13 +71,15 @@
   }
 
   // Postura del tirador asomado: hombros, mano y boca del cañón (coordenadas de pantalla).
-  function pose(ox, oy, win, g) {
+  // q: estado de la animación (por defecto el actual; al dibujar se usa redondeado para poder reutilizarlo).
+  function pose(ox, oy, win, g, q) {
+    q = q || R;
     const [wx, wy, ww, wh] = win;
     const ax = ox + wx + (ww >> 1), top = oy + wy, sill = top + wh;
-    const k = R.k * R.k * (3 - 2 * R.k);
+    const k = q.k * q.k * (3 - 2 * q.k);
     const hipY = Math.round(sill + 6 - k * (sill + 6 - top));
     const sy = hipY - 5, shx = ax + 1, shy = sy + 1;
-    const a = R.aim - R.recoil * 0.35, reach = 4.5 - R.recoil * 1.5;
+    const a = q.aim - q.recoil * 0.35, reach = 4.5 - q.recoil * 1.5;
     const dx = Math.cos(a), dy = Math.sin(a);
     const hx = shx + dx * reach, hy = shy + dy * reach;
     return { ax, top, sill, hipY, sy, shx, shy, dx, dy, hx, hy, mx: hx + dx * (g.len + 1), my: hy + dy * (g.len + 1) };
@@ -123,13 +125,13 @@
   const canShoot = () => G.mode === 'run' && G.car && !G.car.dead;
 
   // ---------------- Disparo ----------------
-  function hit(z, dmg, vx, sy, headshot) {
+  function hit(z, dmg, vx, sy, headshot, how) {
     if (headshot) { dmg *= 2; G.floats.push({ wx: z.wx, y: z.y - tall(z) - 6, text: 'x2!', color: '#ff5a4a', life: 0.8 }); }
     z.hp -= dmg; z.hitT = 0.08;
     if (!z.pushed) z.wx += Math.min(4, vx / 40);
-    FX.blood(z.wx, sy, headshot ? 10 : 4, vx, z.y);
+    Z.Gore.hit(z, sy, vx, headshot || dmg >= 20);
     snd('chof', { vol: 0.22, pitch: headshot ? 1.8 : 1.4, gap: 0.04 });
-    if (z.hp <= 0) Z.killZombie(z, vx);
+    if (z.hp <= 0) Z.killZombie(z, vx, headshot ? 'head' : how);
   }
 
   function explode(wx, wy, g) {
@@ -139,7 +141,7 @@
     for (const z of G.zombies) {
       if (z.dead) continue;
       const d = Math.hypot(z.wx - wx, (z.y - 10) - wy);
-      if (d < g.aoe) { z.hp -= g.dmg * (1 - d / g.aoe * 0.5); z.hitT = 0.1; if (z.hp <= 0) Z.killZombie(z, (z.wx - wx) * 5 + 40); }
+      if (d < g.aoe) { z.hp -= g.dmg * (1 - d / g.aoe * 0.5); z.hitT = 0.1; if (z.hp <= 0) Z.killZombie(z, (z.wx - wx) * 5 + 40, 'blast'); }
     }
   }
 
@@ -174,13 +176,13 @@
       const hy = direct ? Z.clamp(ty, z.y - tall(z), z.y - 2) : z.y - tall(z) * 0.55;
       const head = manual && direct && hy <= z.y - tall(z) + 5;
       FX.add({ k: 'tracer', x: mx + camX, y: my, x2: z.wx, y2: hy, life: 0.06 });
-      hit(z, g.dmg, vx, hy, head);
+      hit(z, g.dmg, vx, hy, head, g.pierce ? 'pierce' : g.pellets > 1 ? 'pellet' : 'bullet');
       // el rifle sigue de largo y atraviesa a los que vienen detrás
       if (g.pierce) {
         const hitSet = [z];
         for (let d = 6; d < 220 && hitSet.length < g.pierce; d += 2) {
           const nx = zx + d, n = zombieAt(nx, hy, 0);
-          if (n && !hitSet.includes(n)) { hitSet.push(n); hit(n, g.dmg * 0.8, vx, hy, false); }
+          if (n && !hitSet.includes(n)) { hitSet.push(n); hit(n, g.dmg * 0.8, vx, hy, false, 'pierce'); }
         }
         FX.add({ k: 'tracer', x: z.wx, y: hy, x2: z.wx + 160, y2: hy, life: 0.04 });
       }
@@ -265,40 +267,49 @@
     if (g.hold) Z.px(ctx, hx + dx * 2, hy + dy * 2 + 1, C.metal);
   }
 
-  // Se pinta en un lienzo aparte para darle el mismo contorno y luz de borde que a los zombis.
-  const [GC, gx] = Z.canvas(56, 50), GOX = 20, GOY = 34;   // la ventanilla queda en (GOX, GOY)
-  function drawGunner(ctx, art, car, ox, oy) {
-    if (R.k <= 0.02 || car.dead || car.burnt) return;
-    const g = stats(), p0 = pose(ox, oy, winOf(art, R.side), g);
-    // mismas cuentas, pero en coordenadas del lienzo pequeño
-    const dx0 = GOX - p0.ax, dy0 = GOY - p0.sill;
-    const p = Object.assign({}, p0, { ax: GOX, sill: GOY, top: p0.top + dy0, hipY: p0.hipY + dy0, sy: p0.sy + dy0, shx: p0.shx + dx0, shy: p0.shy + dy0, hx: p0.hx + dx0, hy: p0.hy + dy0 });
-    gx.clearRect(0, 0, GC.width, GC.height);
+  // Se pinta en un lienzo aparte para darle el mismo contorno y luz de borde que a los zombis. Cada postura
+  // (redondeada) se guarda ya dibujada, así que casi todos los cuadros son una sola drawImage.
+  const GW = 56, GH = 50, GOX = 20, GOY = 34;   // la ventanilla queda en (GOX, GOY) del lienzo
+  const POSES = new Map();
+  function gunnerCanvas(win, g, q) {
+    const key = [g.id, win[3], q.k, q.aim, q.recoil, q.reload, q.hair, q.scarf, q.tail].join('|');
+    let c = POSES.get(key);
+    if (c) return c;
+    const [cv, gx] = Z.canvas(GW, GH);
+    const p = pose(GOX - (win[2] >> 1) - win[0], GOY - win[3] - win[1], win, g, q);
     gx.save();
-    gx.beginPath(); gx.rect(0, 0, GC.width, GOY); gx.clip();                 // el cuerpo no baja del marco de la ventanilla
+    gx.beginPath(); gx.rect(0, 0, GW, GOY); gx.clip();                       // el cuerpo no baja del marco de la ventanilla
     Z.rect(gx, p.ax - 1, p.hipY, 3, p.sill - p.hipY, '#0c0a12');               // piernas dentro del coche
     if (g.two) Z.line(gx, p.ax, p.shy, p.hx + p.dx * g.len * 0.55, p.hy + p.dy * g.len * 0.55, 1, C.jacketD);
     // torso con la espalda en sombra
     Z.rect(gx, p.ax - 1, p.sy, 3, p.hipY - p.sy, C.jacket);
     Z.rect(gx, p.ax - 1, p.sy, 1, p.hipY - p.sy, C.jacketD);
     // cabeza: pelo atrás, ojo mirando al frente; cabecea con el retroceso y baja la vista al recargar
-    const hx = p.ax - 1, hy = p.sy - 4 + (R.recoil > 0.6 ? -1 : 0) + (R.reload > 0 ? 1 : 0);
+    const hx = p.ax - 1, hy = p.sy - 4 + (q.recoil > 0.6 ? -1 : 0) + (q.reload ? 1 : 0);
     Z.rect(gx, hx, hy, 4, 4, C.skin);
     Z.rect(gx, hx, hy, 4, 1, C.hair); Z.rect(gx, hx, hy, 1, 3, C.hair);
-    Z.px(gx, hx + 3, hy + (R.aim > 0.6 ? 2 : 1), C.eye);
+    Z.px(gx, hx + 3, hy + (q.aim > 0.6 ? 2 : 1), C.eye);
     Z.px(gx, hx + 2, hy + 3, C.skinD);
-    if (G.t % 0.3 < 0.15 && car.speed > 20) Z.px(gx, hx - 1, hy, C.hair);
+    if (q.hair) Z.px(gx, hx - 1, hy, C.hair);
     // pañuelo al cuello ondeando con el viento
     Z.rect(gx, hx, p.sy, 3, 1, C.scarf);
-    const wind = Z.clamp(car.speed / 40, 0.3, 1.6);
-    for (let i = 1; i <= Math.round(1 + wind * 2); i++) Z.px(gx, hx - i, p.sy + Math.round(Math.sin(G.t * 18 - i * 1.3) * 0.7 + i * 0.25), i > 2 ? C.scarfD : C.scarf);
-    if (R.k > 0.98) gx.restore();   // asomado del todo: el brazo y el arma pueden bajar por delante de la puerta
+    for (let i = 1; i <= q.tail; i++) Z.px(gx, hx - i, p.sy + Math.round(Math.sin(q.scarf * Math.PI / 3 - i * 1.3) * 0.7 + i * 0.25), i > 2 ? C.scarfD : C.scarf);
+    if (q.k > 0.98) gx.restore();   // asomado del todo: el brazo y el arma pueden bajar por delante de la puerta
     drawGun(gx, p, g);
     Z.line(gx, p.shx, p.shy, p.hx, p.hy, 1, C.jacket);
     Z.px(gx, p.hx, p.hy, C.skin);
-    if (R.k <= 0.98) gx.restore();
-    Z.outline(GC, '#9aa8e8', 0.22);
-    ctx.drawImage(GC, p0.ax - GOX, p0.sill - GOY);
+    if (q.k <= 0.98) gx.restore();
+    Z.outline(cv, '#9aa8e8', 0.22);
+    POSES.set(key, cv);
+    if (POSES.size > 240) POSES.delete(POSES.keys().next().value);
+    return cv;
+  }
+  function drawGunner(ctx, art, car, ox, oy) {
+    if (R.k <= 0.02 || car.dead || car.burnt) return;
+    const win = winOf(art, R.side), g = stats();
+    const q = { k: Math.round(R.k * 10) / 10, aim: Math.round(R.aim * 16) / 16, recoil: Math.round(R.recoil * 4) / 4, reload: R.reload > 0 ? 1 : 0,
+      hair: car.speed > 20 && G.t % 0.3 < 0.15 ? 1 : 0, scarf: Math.floor(G.t * 18 / (Math.PI / 3)) % 6, tail: Math.round(1 + Z.clamp(car.speed / 40, 0.3, 1.6) * 2) };
+    ctx.drawImage(gunnerCanvas(win, g, q), ox + win[0] + (win[2] >> 1) - GOX, oy + win[1] + win[3] - GOY);
   }
 
   // Munición encima del coche: balas (o una barra si el cargador es grande) y la recarga.

@@ -161,7 +161,8 @@
 
   function addFloat(wx, y, text, color) { G.floats.push({ wx, y, text, color, life: 1.1 }); }
 
-  function killZombie(z, vx) {
+  // how: cómo muere (bullet, head, pellet, pierce, ram, grind, blast, fire); elige la animación en js/gore.js.
+  function killZombie(z, vx, how) {
     if (z.dead) return;
     z.dead = true;
     const car = G.car, st = car.st;
@@ -170,10 +171,9 @@
     G.run.byType[z.type] = (G.run.byType[z.type] || 0) + 1;
     S.stats.kills++; S.stats.byType[z.type] = (S.stats.byType[z.type] || 0) + 1;
     addFloat(z.wx, z.y - 22, '+$' + Z.fmt(Math.max(1, reward)), '#ffd25a');
-    const col = Z.SPR[z.type][z.v].col;
     sfx('muerte_zombi', { pitch: z.type === 'brute' ? 0.55 : z.type === 'bloater' ? 0.75 : 1, vol: 0.7, gap: 0.04 });
     sfx('moneda', { vol: 0.25, gap: 0.09 });
-    FX.gore(z, vx, col, z.type === 'brute');
+    Z.Gore.kill(z, vx, how);
     if (z.type === 'bloater') {
       FX.blood(z.wx, z.y - 10, 40, vx * 0.5, z.y, ['#6a8a1a', '#9ac02a', '#c8e050']); sfx('chof', { pitch: 0.6 });
       if (Math.abs(z.wx - carFront()) < 26 && !car.dead) { damageCar(Z.ZTYPES.bloater.acid * Z.ZONES[G.zone].dmg); addFloat(z.wx, z.y - 30, '-' + Math.round(Z.ZTYPES.bloater.acid * Z.ZONES[G.zone].dmg), '#9ac02a'); }
@@ -204,7 +204,7 @@
       for (let i = 0; i < 4; i++) FX.add({ k: 'fire', x: mwx + Z.rr(0, 4), y: my + Z.rr(-1, 1), vx: Z.rr(140, 220) + car.speed, vy: Z.rr(-10, 35), g: 0, life: Z.rr(0.25, 0.4), max: 0.4 });
       G.lights.push({ x: mwx - G.camX + 20, y: my + 6, r: 50, color: '#ff8a30', a: 0.45 });
       sfx('explosion', { vol: 0.08, pitch: 2.5, gap: 0.25 });
-      for (const z of inRange) { z.hp -= st.fire * mul * dt; z.burn = 2.5; if (z.hp <= 0) killZombie(z, 60); }
+      for (const z of inRange) { z.hp -= st.fire * mul * dt; z.burn = 2.5; if (z.hp <= 0) killZombie(z, 60, 'fire'); }
       return;
     }
     car.cool -= dt;
@@ -218,7 +218,7 @@
       FX.add({ k: 'tracer', x: mwx, y: my, x2: z.wx, y2: ty, life: 0.06 });
       z.hp -= st.fire * mul; z.hitT = 0.08; if (!z.pushed) z.wx += 2;
       FX.blood(z.wx, ty, 4, 60, z.y);
-      if (z.hp <= 0) killZombie(z, 90);
+      if (z.hp <= 0) killZombie(z, 90, st.pellets > 1 ? 'pellet' : 'bullet');
     }
     FX.add({ k: 'flash', x: mwx + 1, y: my, life: 0.05, s: st.pellets > 1 ? 2.5 : 1.6 });
     sfx(st.pellets > 1 ? 'escopeta' : st.rate > 4 ? 'metralla' : 'disparo', { vol: 0.55 });
@@ -236,7 +236,7 @@
       if (z.burn > 0) {
         z.burn -= dt; z.hp -= car.st.fire * 0.25 * dt;
         if (Math.random() < 0.5) FX.fire(z.wx, z.y - 10, 1, 3);
-        if (z.hp <= 0) { killZombie(z, 20); continue; }
+        if (z.hp <= 0) { killZombie(z, 20, 'fire'); continue; }
       }
       // objetivo: el conductor si está fuera del coche, si no el coche
       const target = G.actor && G.actor.state !== 'gone' ? G.actor.wx : null;
@@ -246,7 +246,7 @@
         z.hp -= (car.st.dmg * (car.perks.filo > 0 ? 2 : 1)) * 1.1 * dt;
         if (Math.random() < dt * 8) FX.blood(z.wx - 3, z.y - 9, 2, 40, z.y);
         if (!car.dead) car.hp -= z.dps * (1 - car.st.armor) * dt;
-        if (z.hp <= 0) { killZombie(z, 40 + car.speed); continue; }
+        if (z.hp <= 0) { killZombie(z, 40 + car.speed, 'grind'); continue; }
         if (car.dead && car.speed < 2) { z.pushed = false; }
         continue;
       }
@@ -263,7 +263,7 @@
           const hit = car.st.dmg * (car.perks.filo > 0 ? 2 : 1) * (0.5 + car.speed / Math.max(1, car.st.speed)) * (0.8 + car.st.mass * 0.2);
           z.hp -= hit; z.hitT = 0.1;
           car.speed *= 1 - Math.min(0.6, z.m * 0.05 * (1 - car.st.grip) / car.st.mass);
-          if (z.hp <= 0) { killZombie(z, 80 + car.speed * 1.4); car.bump = 1; damageCar(z.impact * 0.3); continue; }
+          if (z.hp <= 0) { killZombie(z, 80 + car.speed * 1.4, 'ram'); car.bump = 1; damageCar(z.impact * 0.3); continue; }
           damageCar(z.impact); FX.blood(front, z.y - 10, 8, 50, z.y);
           z.pushed = true; z.atk = true;
           continue;
@@ -418,7 +418,7 @@
           G.flash = 0.7; G.flashCol = '#fff2d0'; G.shake = 9; G.hitstop = 0.12;
           FX.debris(cx, Z.GROUND - 10, 18, ['#5d5a63', art.paint.base, '#2a2830', '#8a8692']);
           for (let i = 0; i < 2; i++) FX.add({ k: 'wheel', img: art.wheelFrames[0], x: cx + (i ? 18 : -18), y: Z.GROUND - 6, vx: i ? 90 : -40, vy: -170, g: 320, life: 4, gy: Z.GROUND + 2 });
-          for (const z of G.zombies) if (Math.abs(z.wx - cx) < 75) killZombie(z, (z.wx - cx) * 4);
+          for (const z of G.zombies) if (Math.abs(z.wx - cx) < 75) killZombie(z, (z.wx - cx) * 4, 'blast');
         }
       } else {
         if (Math.random() < 0.6) FX.fire(G.camX + carScreenX() + Z.rr(6, art.mw - 6), Z.GROUND - 8, 1, 2);
@@ -601,11 +601,11 @@
   };
 
   function drawZombie(ctx, z, camX) {
-    const set = Z.SPR[z.type][z.v];
-    const frames = z.atk ? set.attack : set.walk;
-    const f = frames[Math.floor(z.phase * frames.length) % frames.length];
-    const img = z.hitT > 0 ? f.flash : f.c;
-    const sx = Math.round(z.wx - camX - set.cx), sy = Math.round(z.y - set.gy);
+    const set = Z.SPR[z.type][z.v], st = Z.Gore.frames(z);   // cuadros con las heridas que lleve
+    const frames = z.atk ? st.attack : st.walk;
+    const img = frames[Math.floor(z.phase * frames.length) % frames.length].c;
+    const kick = z.hitT > 0 ? -z.dir : 0;   // al recibir un golpe se echa atrás un píxel
+    const sx = Math.round(z.wx - camX - set.cx + kick), sy = Math.round(z.y - set.gy);
     if (z.dir > 0) { ctx.save(); ctx.translate(sx + set.w, sy); ctx.scale(-1, 1); ctx.drawImage(img, 0, 0); ctx.restore(); }
     else ctx.drawImage(img, sx, sy);
     // sombra

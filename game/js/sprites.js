@@ -89,8 +89,26 @@
       Z.px(ctx, hx, hy + hh - 1, C.mouth || '#2a0a0e');
       if (o.drool) Z.px(ctx, hx, hy + hh, '#8a1420');
     }
-    if (!o.missingArm) arm(0, C.top, false);
-    if (o.shield) {
+    // Heridas (1: tocado, 2: destrozado). Se pintan encima del cuerpo con los puntos de la marioneta.
+    const wd = o.wound || 0;
+    if (wd >= 1) {
+      const BL = '#8a1420', BD = '#5a0a12', tx = Math.round(shX), ty = Math.round(shY);
+      Z.rect(ctx, tx - 1, ty + 2, 2, 2, BL); Z.px(ctx, tx, ty + 4, BD); Z.px(ctx, tx + 1, ty + 1, BD);   // mancha en el pecho
+      Z.px(ctx, hx, hy + hh, BL); Z.px(ctx, hx, hy + hh + 1, BD);                                     // sangre por la boca
+      Z.px(ctx, hipX - 1, hipY + 2, BD);                                                               // gotea por la pierna
+    }
+    if (wd >= 2) {
+      const tx = Math.round(shX), ty = Math.round(shY);
+      if (!o.helmet) { Z.rect(ctx, hx + 1, hy, 2, 1, '#c01c2c'); Z.px(ctx, hx + 2, hy, '#e0d4b8'); }  // brecha en la cabeza
+      else { Z.px(ctx, hx + 1, hy + 1, '#1a2238'); Z.px(ctx, hx + 2, hy + 2, '#e0ecff'); }              // visera rota
+      for (let i = 0; i < 3; i++) Z.px(ctx, tx + (i & 1), ty + 2 + i, '#d8cbb0');                       // costillas al aire
+      Z.rect(ctx, hipX - 1, hipY + 1, 1, Math.round(legL * 0.6), '#6a0e16');
+      if (o.belly) { Z.disc(ctx, (hipX + shX) / 2 - 1.5 * s, (hipY + shY) / 2 + 1, o.belly * s * 0.45, '#5a0a12'); Z.px(ctx, (hipX + shX) / 2 - 2, (hipY + shY) / 2, '#9ac02a'); }
+    }
+    const armless = o.missingArm || (wd >= 2 && o.loseArm);
+    if (!armless) arm(0, C.top, false);
+    else if (wd >= 2 && o.loseArm) { Z.px(ctx, shX - 1, shY + 1, '#c01c2c'); Z.px(ctx, shX - 1, shY + 2, '#6a0e16'); }   // muñón
+    if (o.shield && wd < 2) {
       const sx = Math.round(shX - UA - 2), sy = Math.round(shY - 2);
       Z.rect(ctx, sx, sy, 2, Math.round(12 * s), C.shield);
       Z.rect(ctx, sx, sy, 1, Math.round(12 * s), '#7a88aa');
@@ -120,7 +138,16 @@
   };
   function finishPal(c) { c.topD = Z.mix(c.top, '#05030a', 0.4); c.bottomD = Z.mix(c.bottom, '#05030a', 0.45); return c; }
 
-  // Genera cuadros: walk (8), attack (6), idle (1). Cada uno con su silueta blanca para el golpe.
+  // ---------- Juegos de sprites de personajes ----------
+  // Contrato (para poder cambiar el arte por dibujos hechos a mano sin tocar el resto del juego):
+  //   Z.SPR[tipo][variante] = { w, h, cx, gy, col, hip, neck, walk, attack, idle, stage(n) }
+  //   · w, h: tamaño de cada cuadro; (cx, gy): punto de apoyo (entre los pies) dentro del cuadro.
+  //   · hip, neck: filas de la cadera y de los hombros (cortes al morir).
+  //   · col: colores principales (los usan cadáveres y trozos: top, bottom, skin, hair, helmet…).
+  //   · walk / attack / idle: listas de cuadros { c } con c = canvas o imagen, mirando a la izquierda.
+  //   · stage(n): los mismos cuadros con heridas; n = 0 sano, 1 tocado, 2 destrozado (Z.WOUNDS).
+  // Un juego dibujado a mano solo tiene que devolver esa misma forma (p. ej. recortando una hoja de sprites).
+  Z.WOUNDS = 3;
   const SPR = {};
   function makeSet(type, variant) {
     const b = BODY[type], big = (b.s || 1) > 1.2;
@@ -133,16 +160,29 @@
       for (let i = 0; i < n; i++) stains.push([Math.floor(r() * 3) - 1, 1 + Math.floor(r() * 6), r() < 0.5 ? '#6a0e16' : '#8a1a20']);
     }
     const missingArm = type === 'walker' && r() < 0.25;
-    const set = { w, h, cx, gy, walk: [], attack: [], run: [], idle: [], col };
-    function frame(mode, phase) {
+    const loseArm = type !== 'riot' && type !== 'bloater' && r() < 0.6;
+    function frame(mode, phase, wound) {
       const [c, x] = Z.canvas(w, h);
-      humanoid(x, Object.assign({}, b, { cx, gy, phase, mode, col, stains, missingArm }));
+      humanoid(x, Object.assign({}, b, { cx, gy, phase, mode, col, stains, missingArm, loseArm, wound }));
       Z.outline(c, RIM, 0.22);
-      return { c, flash: Z.silhouette(c, '#fff6ea') };
+      return { c };
     }
-    for (let i = 0; i < 8; i++) set.walk.push(frame(type === 'runner' || type === 'driver' ? 'run' : 'walk', i / 8));
-    for (let i = 0; i < 6; i++) set.attack.push(frame('attack', i / 6));
-    set.idle.push(frame('idle', 0));
+    // Las heridas se dibujan la primera vez que hacen falta (así arrancar cuesta lo mismo que antes).
+    const stages = [];
+    // Filas de los hombros y de la cadera en el cuadro (para descabezar o partir por la mitad al morir).
+    const sc = b.s || 1, hip = Math.round(gy - b.leg * 0.95 * sc), neck = Math.round(hip - b.torso * sc);
+    const set = { w, h, cx, gy, col, loseArm, hip, neck, stage(n) {
+      n = Math.max(0, Math.min(Z.WOUNDS - 1, n | 0));
+      if (!stages[n]) {
+        const st = { walk: [], attack: [], idle: [] };
+        for (let i = 0; i < 8; i++) st.walk.push(frame(type === 'runner' || type === 'driver' ? 'run' : 'walk', i / 8, n));
+        for (let i = 0; i < 6; i++) st.attack.push(frame('attack', i / 6, n));
+        st.idle.push(frame('idle', 0, n));
+        stages[n] = st;
+      }
+      return stages[n];
+    } };
+    Object.assign(set, set.stage(0));
     return set;
   }
   Z.zombieSprites = function () {

@@ -52,6 +52,7 @@
       for (let i = P.length - 1; i >= 0; i--) {
         const p = P[i];
         p.life -= dt;
+        if (p.step) { if (!p.step(p, dt)) P.splice(i, 1); continue; }   // partículas con su propio movimiento (js/gore.js)
         if (p.vx !== undefined) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += (p.g || 0) * dt; }
         if (p.k === 'smoke') { p.s += dt * 3; p.vx *= 0.98; }
         if (p.gy !== undefined && p.y >= p.gy && p.vy > 0) {
@@ -74,7 +75,8 @@
         const d = D[i], sx = Math.round(d.x - camX);
         if (sx < -40) { if (camX > 0) D.splice(i, 1); continue; }
         if (sx > Z.W + 40) continue;
-        if (d.corpse) Z.drawCorpse(ctx, sx, d.y, d.corpse, d.big, d.flip);
+        if (d.img) ctx.drawImage(d.img, sx - d.ox, d.y - d.oy);
+        else if (d.corpse) Z.drawCorpse(ctx, sx, d.y, d.corpse, d.big, d.flip);
         else { Z.rect(ctx, sx, d.y, d.w, d.h || 1, d.c); if (d.hair) Z.px(ctx, sx + 2, d.y, d.hair); }
       }
     },
@@ -83,6 +85,7 @@
       for (const p of this.parts) {
         const sx = p.x - camX, sy = p.y;
         if (sx < -60 || sx > Z.W + 60) continue;
+        if (p.draw) { p.draw(ctx, sx, sy, lights); continue; }
         switch (p.k) {
           case 'drop': Z.px(ctx, sx, sy, p.c); break;
           case 'chunk': Z.rect(ctx, sx, sy, p.s, p.s, p.c); break;
