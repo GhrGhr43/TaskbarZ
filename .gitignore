@@ -1,2 +1,4 @@
 node_modules/
 dist/
+# Plantilla de arte exportada (npm run exportar-arte): se regenera cuando se quiera
+game/art/plantilla/

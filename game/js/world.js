@@ -301,10 +301,34 @@
         for (const off of [0, -LW, LW]) { fx.beginPath(); fx.ellipse(cx + off, cy, r * 2.2, r * 0.6, 0, 0, Math.PI * 2); fx.fill(); }
       }
       a.fogTex = fc;
+      packZone(a, Z.ZONES[i] ? Z.ZONES[i].id : String(i));
       CACHE[i] = a;
     }
     return CACHE[i];
   };
+
+  // Fondo de un pack de arte ('zona.<id>'): cada parte que traiga sustituye a la de código.
+  // capas: [{ imagen, paralaje, y, luces }]; si trae capas, sustituyen a todas las de código.
+  function packZone(a, id) {
+    const d = Z.Art.get('zona.' + id);
+    if (!d) return;
+    const cv = Z.Art.canvas;
+    if (d.cielo) { a.sky = cv(d.cielo); a.twinkle = d.estrellas || []; }
+    if (d.capas) a.layers = d.capas.map(L => ({ c: cv(L.imagen || L), f: L.paralaje != null ? L.paralaje : 0.3, y: L.y || 0, lights: L.luces || null }));
+    if (d.carretera) a.roadTile = cv(d.carretera);
+    if (d.arcen) a.vergeTile = cv(d.arcen);
+    if (d.niebla === false) a.fogA = 0;
+    else if (d.niebla) a.fogTex = cv(d.niebla);
+    if (d.colorNiebla) a.fog = d.colorNiebla;
+    if (d.carreteraBorde) a.road.edge = d.carreteraBorde;
+    if (d.lineas === false) a.road.dash = null;
+    else if (d.lineas) a.road.dash = d.lineas;
+  }
+  // Repite una imagen en horizontal hasta cubrir la pantalla (las capas de un pack pueden medir lo que quieran).
+  function tileX(ctx, img, off, y) {
+    const w = img.width;
+    for (let x = -off; x < W; x += w) ctx.drawImage(img, x, y);
+  }
 
   // Luces dinámicas de las capas (farolas, fuegos, balizas).
   function layerLight(ctx, L, sx, t, lightsOut) {
@@ -336,37 +360,34 @@
   Z.drawBackdrop = function (ctx, zi, camX, t, alpha, lightsOut, night) {
     const a = Z.zoneArt(zi);
     ctx.globalAlpha = alpha;
-    ctx.drawImage(a.sky, 0, 0);
+    if (a.sky.width >= W) ctx.drawImage(a.sky, 0, 0); else tileX(ctx, a.sky, 0, 0);
     for (const [x, y] of a.twinkle) if (Math.sin(t * 3 + x * 7) > 0.6) Z.px(ctx, x, y, '#ffffff');
     if (night && night.id === 'sangre') {
       Z.disc(ctx, 420, 26, 10, '#a01818'); Z.disc(ctx, 423, 24, 8, '#d02a20'); Z.px(ctx, 418, 28, '#801010');
       lightsOut.push({ x: 420, y: 26, r: 26, color: '#ff2020', a: 0.25 });
     }
     for (const L of a.layers) {
-      const off = ((camX * L.f) % LW + LW) % LW;
-      ctx.drawImage(L.c, -Math.floor(off), 0);
-      ctx.drawImage(L.c, LW - Math.floor(off), 0);
+      const lw = L.c.width, off = ((camX * L.f) % lw + lw) % lw;
+      tileX(ctx, L.c, Math.floor(off), L.y || 0);
       if (L.lights && alpha > 0.5) for (const li of L.lights) {
         let sx = li.x - Math.floor(off);
-        if (sx < -30) sx += LW;
+        if (sx < -30) sx += lw;
         if (sx > -30 && sx < W + 30) layerLight(ctx, li, sx, t, lightsOut);
       }
     }
     // niebla
     const fa = a.fogA * (night && night.id === 'niebla' ? 2.4 : 1);
     ctx.globalAlpha = alpha * Math.min(1, fa * 4);
-    const foff = ((camX * 0.5 + t * 6) % LW + LW) % LW;
-    ctx.drawImage(a.fogTex, -Math.floor(foff), 62); ctx.drawImage(a.fogTex, LW - Math.floor(foff), 62);
+    const fw = a.fogTex.width, foff = ((camX * 0.5 + t * 6) % fw + fw) % fw;
+    if (fa > 0) tileX(ctx, a.fogTex, Math.floor(foff), 62);
     ctx.globalAlpha = 1;
   };
 
   Z.drawRoad = function (ctx, zi, camX) {
     const a = Z.zoneArt(zi);
-    const off = Math.floor(((camX % 64) + 64) % 64);
-    for (let x = -off; x < W; x += 64) {
-      ctx.drawImage(a.vergeTile, x, Z.ROAD_TOP - 7);
-      ctx.drawImage(a.roadTile, x, Z.ROAD_TOP);
-    }
+    const vw = a.vergeTile.width, rw = a.roadTile.width;
+    tileX(ctx, a.vergeTile, Math.floor(((camX % vw) + vw) % vw), Z.ROAD_TOP + 1 - a.vergeTile.height);
+    tileX(ctx, a.roadTile, Math.floor(((camX % rw) + rw) % rw), Z.ROAD_TOP);
     Z.rect(ctx, 0, Z.ROAD_TOP, W, 1, a.road.edge);
     if (a.road.dash) {
       const doff = Math.floor(((camX % 48) + 48) % 48);
@@ -415,36 +436,43 @@
     Z.rect(x, 200, 104, 120, 3, '#4a4a52'); Z.rect(x, 200, 104, 120, 1, '#8a8a96');
     Z.rect(x, 214, 107, 4, 14, '#2a2a30'); Z.rect(x, 302, 107, 4, 14, '#2a2a30');
     x.restore();
-    GAR = { c };
+    // Garaje de un pack de arte: la imagen se centra en pantalla (512 de ancho = el interior; más ancha cubre los lados).
+    const d = Z.Art.get('garaje');
+    if (d) { const img = Z.Art.canvas(d.imagen || d); x.drawImage(img, Math.round((W - img.width) / 2), 0); }
+    GAR = { c, adornos: !d || d.adornos !== false, puerta: (d && d.puerta) || [440, 28, 72, 72] };
   }
+  Z.garageBackdrop = function () { if (!GAR) buildGarage(); return GAR.c; };
   Z.drawGarage = function (ctx, t, lightsOut, doorOpen) {
     if (!GAR) buildGarage();
     ctx.drawImage(GAR.c, 0, 0);
     ctx.save(); ctx.translate(GOX, 0);
     const lightsAt = lightsOut.length;
-    // letrero de neón
-    const on = Math.sin(t * 17) > -0.8 || Math.sin(t * 2.3) > 0;
-    ctx.font = '8px monospace';
+    // letrero de neón, velas y lámpara (un pack de garaje puede quitarlos con adornos: false)
+    const deco = GAR.adornos;
+    const on = deco && (Math.sin(t * 17) > -0.8 || Math.sin(t * 2.3) > 0);
     if (on) { lightsOut.push({ x: 260, y: 14, r: 34, color: '#ff2a3a', a: 0.22 }); }
-    // velas
-    for (const cx of [154, 158, 169, 173]) {
-      const fy = 64 - (cx % 3) - 1 + (Math.sin(t * 11 + cx) > 0 ? 0 : 1);
-      Z.px(ctx, cx, fy, '#ffd070'); Z.px(ctx, cx, fy - 1, '#ff8a30');
-      lightsOut.push({ x: cx, y: fy, r: 10 + Math.sin(t * 9 + cx) * 2, color: '#ff9a40', a: 0.12 });
+    if (deco) {
+      // velas
+      for (const cx of [154, 158, 169, 173]) {
+        const fy = 64 - (cx % 3) - 1 + (Math.sin(t * 11 + cx) > 0 ? 0 : 1);
+        Z.px(ctx, cx, fy, '#ffd070'); Z.px(ctx, cx, fy - 1, '#ff8a30');
+        lightsOut.push({ x: cx, y: fy, r: 10 + Math.sin(t * 9 + cx) * 2, color: '#ff9a40', a: 0.12 });
+      }
+      // lámpara colgante que se balancea
+      const sw = Math.sin(t * 1.3) * 0.12, lx = 260 + Math.sin(sw) * 34, ly = 2 + Math.cos(sw) * 34;
+      Z.line(ctx, 260, 0, lx, ly, 1, '#0a0a0c');
+      Z.rect(ctx, lx - 4, ly, 9, 3, '#2a2a30'); Z.rect(ctx, lx - 1, ly + 3, 3, 1, '#fff0c0');
+      ctx.fillStyle = 'rgba(255,220,150,0.04)';
+      ctx.beginPath(); ctx.moveTo(lx - 3, ly + 3); ctx.lineTo(lx + 3, ly + 3); ctx.lineTo(lx + 70, 104); ctx.lineTo(lx - 70, 104); ctx.fill();
+      lightsOut.push({ x: lx, y: ly + 6, r: 90, color: '#ffd8a0', a: 0.28 });
     }
-    // lámpara colgante que se balancea
-    const sw = Math.sin(t * 1.3) * 0.12, lx = 260 + Math.sin(sw) * 34, ly = 2 + Math.cos(sw) * 34;
-    Z.line(ctx, 260, 0, lx, ly, 1, '#0a0a0c');
-    Z.rect(ctx, lx - 4, ly, 9, 3, '#2a2a30'); Z.rect(ctx, lx - 1, ly + 3, 3, 1, '#fff0c0');
-    ctx.fillStyle = 'rgba(255,220,150,0.04)';
-    ctx.beginPath(); ctx.moveTo(lx - 3, ly + 3); ctx.lineTo(lx + 3, ly + 3); ctx.lineTo(lx + 70, 104); ctx.lineTo(lx - 70, 104); ctx.fill();
-    lightsOut.push({ x: lx, y: ly + 6, r: 90, color: '#ffd8a0', a: 0.28 });
     // puerta
-    if (doorOpen > 0 && Math.round(72 * doorOpen) > 0) {
-      const hgt = Math.round(72 * doorOpen);
-      Z.ditherV(ctx, 440 + GOX, 28 + 72 - hgt, 72, hgt, ['#0c0f28', '#22214a', '#6a3a52']);
-      Z.rect(ctx, 440, 28 + 72 - hgt - 1, 72, 1, '#4a4c58');
-      lightsOut.push({ x: 476, y: 90, r: 40 * doorOpen, color: '#8a90ff', a: 0.25 });
+    const [px, py, pw, ph] = GAR.puerta;
+    if (doorOpen > 0 && Math.round(ph * doorOpen) > 0) {
+      const hgt = Math.round(ph * doorOpen);
+      Z.ditherV(ctx, px + GOX, py + ph - hgt, pw, hgt, ['#0c0f28', '#22214a', '#6a3a52']);
+      Z.rect(ctx, px, py + ph - hgt - 1, pw, 1, '#4a4c58');
+      lightsOut.push({ x: px + pw / 2, y: py + ph - 10, r: 40 * doorOpen, color: '#8a90ff', a: 0.25 });
     }
     // texto del cartel con fuente bitmap
     Z.pixText(ctx, on ? 'ZG' : '', 254, 11, '#ff4a5a');

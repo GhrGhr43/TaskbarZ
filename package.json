@@ -7,6 +7,7 @@
   "private": true,
   "scripts": {
     "start": "electron .",
+    "exportar-arte": "electron tools/exportar-arte.js",
     "dist:win": "electron-builder --win dir",
     "dist:linux": "electron-builder --linux dir"
   },
