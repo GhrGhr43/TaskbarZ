@@ -56,6 +56,7 @@ app.whenReady().then(() => {
       contextIsolation: true,
       // El juego es idle: tiene que seguir corriendo aunque la ventana no tenga el foco.
       backgroundThrottling: false,
+      autoplayPolicy: 'no-user-gesture-required',   // el sonido suena aunque los clics atraviesen la barra
     },
   });
   win.removeMenu();
