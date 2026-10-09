@@ -27,6 +27,7 @@
     for (let i = 0; i < steps; i++) Z.update(dt);
     while (G.events.length) Z.UI.event(G.events.shift());
     Z.render(out, wc, wctx);
+    Z.Shot.frame(out.getContext('2d'), dt);
     Z.UI.frame(dt);
     uiT -= dt; if (uiT <= 0) { uiT = 0.25; Z.UI.tick(); }
     saveT -= dt; if (saveT <= 0) { saveT = 5; Z.save(); }

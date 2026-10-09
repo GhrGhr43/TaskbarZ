@@ -23,6 +23,7 @@ module.exports = function smoke(win, setMode, dir, app) {
     await wc.executeJavaScript('ZG.G.car.hp = 0'); await wait(7000); log.push('tras morir ' + await state());
     await click('bar-garage'); await wait(1500); log.push('ventana garaje ' + await state()); await shot('4-garaje.png');
     await wait(6000); await click('btn-go'); await wait(3500); log.push('tras A la carretera (garaje) ' + await state()); await shot('5-garaje-carrera.png');
+    log.push('captura ' + String(await wc.executeJavaScript('window.taskbarz.grab({x:100,y:60,width:40,height:40},20).then(u => u ? u.length : null)')));
     fs.writeFileSync(path.join(dir, 'log.txt'), log.join('\n'));
     app.quit();
   });

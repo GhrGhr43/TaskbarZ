@@ -5,6 +5,7 @@ Idle roguelike postapocalíptico que vive encima de la barra de tareas. El coche
 ## Cómo jugar
 - **Navegador:** abre `game/index.html`. No necesita instalación.
 - **Escritorio:** `npm install` y luego `npm start`. Arranca en la barra de tareas, al estilo de Taskbar Hero: una franja transparente a todo el ancho de la pantalla que tapa la barra y sobresale un poco por arriba. El coche, los zombis y la carretera se ven ahí mismo, y los clics atraviesan la franja salvo en sus botones. **A la carretera** sale a correr, **Garaje** abre la ventana grande con la tienda (al volver a salir, la partida regresa sola a la barra) y **✕** cierra el juego. La altura se adapta al tamaño de la barra de Windows.
+- **Disparar a la barra:** deja el ratón quieto 1 segundo sobre un icono de la barra de tareas y aparece una mira; haz clic y el icono revienta en sangre. Es solo un efecto visual: con la mira puesta el clic lo recibe el juego, no la barra ni tus programas, y el icono vuelve a verse a los pocos segundos.
 - **Probar el modo barra en el navegador:** abre `game/index.html?modo=barra&w=960&h=56`.
 
 ## Estructura

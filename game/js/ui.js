@@ -203,14 +203,7 @@
     $('bar-quit').addEventListener('click', () => { Z.save(); if (desk) desk.quit(); });
     if (desk) { $('btn-quit').hidden = false; $('btn-quit').addEventListener('click', () => { Z.save(); desk.quit(); }); }
     if (Z.TASKBAR) setPanel(false);
-    // En la barra, los clics atraviesan el juego salvo encima de sus botones (como Taskbar Hero).
-    let through = null;
-    document.addEventListener('mousemove', (e) => {
-      if (!desk || !Z.overlay) return;
-      const el = document.elementFromPoint(e.clientX, e.clientY);
-      const t = !(el && el.closest('button'));
-      if (t !== through) { through = t; desk.setClickThrough(t); }
-    });
+    // En la barra, los clics atraviesan el juego salvo encima de sus botones (lo gestiona js/shot.js).
     $('btn-go').addEventListener('click', () => { touch(); G.lastInteract = -99; if (Z.TASKBAR) setPanel(false); Z.launch(); });
     applyToggles();
     UI.refresh();

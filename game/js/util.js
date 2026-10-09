@@ -11,6 +11,7 @@ window.ZG = window.ZG || {};
   Z.H = 128;
   Z.VIEW_H = qh >= 40 && qh <= 128 ? qh : 56; // filas visibles en modo barra (la parte baja del mundo)
   Z.VIEW_TOP = Z.H - Z.VIEW_H;
+  Z.TB_ROWS = parseInt(qs.get('tb'), 10) || 24;   // filas del juego que tapan la barra de tareas real
   Z.overlay = false;  // true mientras se dibuja como capa transparente sobre la barra
   Z.PXM = 4;          // píxeles por metro
   Z.ROAD_TOP = 98;
