@@ -240,3 +240,9 @@ body.overlay .meter .num { font-size: 9px; min-width: 0; }
 body.overlay .warn { font-size: 9px; }
 
 @media (prefers-reduced-motion: reduce) { .meter.low .fill, .gauge.low .gb i, .meter.low .mi, .warn, .svc-btn, .gauge.bump .gb i { animation: none; } }
+
+/* Opciones de la franja y del sonido */
+.tb-layout { display: inline-flex; gap: 8px; align-items: center; font-family: var(--font-pixel, monospace); font-size: 10px; color: var(--bone); }
+.tb-layout select { background: #151016; color: var(--bone); border: 1px solid #3a2a30; font: inherit; padding: 2px; }
+.tb-vol { width: 70px; accent-color: #c0202c; }
+body.overlay .bar-ctl #bar-sound.off { opacity: 0.55; }

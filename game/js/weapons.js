@@ -193,7 +193,7 @@
     snd('llave', { vol: 0.5, pitch: 0.8 });
   }
 
-  // Disparo de adorno: el tirador apunta y dispara a un icono de la barra (lo llama js/shot.js).
+  // Disparo de adorno: el tirador apunta y dispara a un punto de la pantalla (ahora no lo usa nadie).
   function fxShot(px, py) {
     if (!G.car || G.car.dead || !G.art || G.mode === 'dying' || G.mode === 'fadeout') return;
     const g = stats(), [sx, sy] = toScreen(px, py);
@@ -338,7 +338,6 @@
     R.mx = inside ? x : -1; R.my = y;
   });
   document.addEventListener('mousedown', (e) => {
-    // el disparo a los iconos de la barra (js/shot.js) tiene prioridad y marca el evento
     if (e.button !== 0 || e.defaultPrevented || onButton(e)) return;
     const [x, y, inside] = toOut(e);
     if (!inside || !canShoot()) return;

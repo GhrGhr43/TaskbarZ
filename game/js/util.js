@@ -7,7 +7,7 @@ window.ZG = window.ZG || {};
   try { qs = new URLSearchParams(location.search); } catch (e) { qs = new URLSearchParams(''); }
   const qw = parseInt(qs.get('w'), 10), qh = parseInt(qs.get('h'), 10);
   Z.TASKBAR = qs.get('modo') === 'barra';   // la app arrancó sobre la barra de tareas
-  Z.W = qw >= 320 && qw <= 2000 ? qw : 512;  // resolución interna (ancho)
+  Z.W = qw >= 320 ? Math.min(qw, 2000) : 512;  // resolución interna (ancho)
   Z.H = 128;
   Z.VIEW_H = qh >= 40 && qh <= 128 ? qh : 56; // filas visibles en modo barra (la parte baja del mundo)
   Z.VIEW_TOP = Z.H - Z.VIEW_H;

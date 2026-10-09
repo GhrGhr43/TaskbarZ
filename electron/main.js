@@ -2,8 +2,16 @@
 // Modo «barra»: capa transparente encima de la barra de tareas, a lo ancho de la pantalla y un poco
 // más alta que la barra; los clics la atraviesan salvo en sus botones (como Taskbar Hero).
 // Modo «garaje»: ventana normal con la tienda.
-const { app, BrowserWindow, ipcMain, screen, desktopCapturer } = require('electron');
+const { app, BrowserWindow, ipcMain, screen } = require('electron');
 const path = require('path');
+const fs = require('fs');
+
+// Tamaño de la franja, elegido por el jugador: alto (0 = según la barra), ancho en % y posición.
+// «Compacto» la deja baja (1x) y estrecha (30%) sin perder la elección normal.
+const PREFS_FILE = () => path.join(app.getPath('userData'), 'barra.json');
+let layout = { scale: 0, width: 100, pos: 'center', compact: false };
+function loadLayout() { try { Object.assign(layout, JSON.parse(fs.readFileSync(PREFS_FILE(), 'utf8'))); } catch (e) { /* primera vez */ } }
+function saveLayout() { try { fs.writeFileSync(PREFS_FILE(), JSON.stringify(layout)); } catch (e) { /* sin disco: se usa en memoria */ } }
 
 const VIEW_H = 56;        // filas internas visibles en la barra (coche, zombis y carretera)
 const FULL = { w: 1200, h: 880 };
@@ -17,9 +25,13 @@ function taskbarGeometry() {
   const b = d.bounds, wa = d.workArea;
   let bar = (b.y + b.height) - (wa.y + wa.height);   // alto de la barra si está abajo
   if (bar < 24) bar = 48;                               // barra oculta, lateral o arriba: se asume 48 px
-  const scale = Math.max(1, Math.round(bar / 24));      // píxeles de pantalla por píxel del juego
+  let scale = layout.scale || Math.max(1, Math.round(bar / 24));   // píxeles de pantalla por píxel del juego
+  let pct = layout.width;
+  if (layout.compact) { scale = 1; pct = Math.min(pct, 30); }
   const height = VIEW_H * scale;
-  return { x: b.x, y: b.y + b.height - height, width: b.width, height, scale, bar, internalW: Math.ceil(b.width / scale), d };
+  const width = Math.max(320 * scale, Math.round(b.width * pct / 100));
+  const x = layout.pos === 'left' ? b.x : layout.pos === 'right' ? b.x + b.width - width : b.x + Math.round((b.width - width) / 2);
+  return { x, y: b.y + b.height - height, width, height, scale, bar, internalW: Math.ceil(width / scale), d };
 }
 
 function setMode(m) {
@@ -41,7 +53,14 @@ function setMode(m) {
   }
 }
 
+function load() {
+  win.loadFile(path.join(__dirname, '..', 'game', 'index.html'), {
+    query: { modo: 'barra', w: String(geo.internalW), h: String(VIEW_H), tb: String(Math.round(geo.bar / geo.scale)) },
+  });
+}
+
 app.whenReady().then(() => {
+  loadLayout();
   geo = taskbarGeometry();
   win = new BrowserWindow({
     x: geo.x, y: geo.y, width: geo.width, height: geo.height,
@@ -60,9 +79,7 @@ app.whenReady().then(() => {
     },
   });
   win.removeMenu();
-  win.loadFile(path.join(__dirname, '..', 'game', 'index.html'), {
-    query: { modo: 'barra', w: String(geo.internalW), h: String(VIEW_H), tb: String(Math.round(geo.bar / geo.scale)) },
-  });
+  load();
   win.once('ready-to-show', () => { setMode('taskbar'); win.showInactive(); });
 
   // Al pulsar un icono, Windows sube la barra de tareas por encima de todo: volvemos a ponernos delante.
@@ -76,24 +93,20 @@ app.whenReady().then(() => {
 
 ipcMain.on('taskbarz:mode', (_e, mode) => setMode(mode === 'full' ? 'full' : 'taskbar'));
 ipcMain.on('taskbarz:through', (_e, on) => { if (win && on !== undefined) win.setIgnoreMouseEvents(!!on, { forward: true }); });
-// Captura el trozo de pantalla que hay bajo el juego (el icono al que disparas) para hacerlo pedazos.
-// Solo se lee la imagen; la barra y los programas no reciben nada.
-ipcMain.handle('taskbarz:grab', async (_e, rect, size) => {
-  if (!win || !geo) return null;
-  const sf = geo.d.scaleFactor || 1;
-  win.setOpacity(0);
-  await new Promise(r => setTimeout(r, 40));
-  try {
-    const sources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: Math.round(geo.d.bounds.width * sf), height: Math.round(geo.d.bounds.height * sf) } });
-    const src = sources.find(s => s.display_id === String(geo.d.id)) || sources[0];
-    if (!src) return null;
-    const crop = { x: Math.round((rect.x + geo.x - geo.d.bounds.x) * sf), y: Math.round((rect.y + geo.y - geo.d.bounds.y) * sf), width: Math.round(rect.width * sf), height: Math.round(rect.height * sf) };
-    return src.thumbnail.crop(crop).resize({ width: size, height: size, quality: 'good' }).toDataURL();
-  } catch (err) {
-    return null;
-  } finally {
-    win.setOpacity(1);
-  }
+ipcMain.handle('taskbarz:get-layout', () => layout);
+ipcMain.on('taskbarz:set-layout', (_e, l) => {
+  if (!win || !l) return;
+  layout = {
+    scale: [0, 1, 2, 3].includes(l.scale) ? l.scale : 0,
+    width: [100, 75, 50, 30].includes(l.width) ? l.width : 100,
+    pos: ['left', 'center', 'right'].includes(l.pos) ? l.pos : 'center',
+    compact: !!l.compact,
+  };
+  saveLayout();
+  geo = taskbarGeometry();
+  setMode('taskbar');
+  // Se recarga con el nuevo ancho interno (la partida ya se guardó antes de pedir el cambio).
+  load();
 });
 ipcMain.on('taskbarz:quit', () => app.quit());
 app.on('window-all-closed', () => app.quit());

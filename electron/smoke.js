@@ -15,6 +15,7 @@ module.exports = function smoke(win, setMode, dir, app) {
   };
   const wait = (ms) => new Promise(r => setTimeout(r, ms));
   wc.once('did-finish-load', async () => {
+    wc.on('console-message', (_e, level, msg) => { if (level >= 3) fs.appendFileSync(path.join(dir, 'errores.txt'), msg + '\n'); });
     const log = [];
     await wc.executeJavaScript('ZG.S.auto = false');
     await wait(1500); log.push('inicio ' + await state()); await shot('1-barra-garaje.png');
@@ -23,7 +24,10 @@ module.exports = function smoke(win, setMode, dir, app) {
     await wc.executeJavaScript('ZG.G.car.hp = 0'); await wait(7000); log.push('tras morir ' + await state());
     await click('bar-garage'); await wait(1500); log.push('ventana garaje ' + await state()); await shot('4-garaje.png');
     await wait(6000); await click('btn-go'); await wait(3500); log.push('tras A la carretera (garaje) ' + await state()); await shot('5-garaje-carrera.png');
-    log.push('captura ' + String(await wc.executeJavaScript('window.taskbarz.grab({x:100,y:60,width:40,height:40},20).then(u => u ? u.length : null)')));
+    await wc.executeJavaScript("window.taskbarz.setLayout({ scale: 1, width: 50, pos: 'right', compact: false })");
+    await wait(2500); log.push('franja 1x 50% derecha ' + JSON.stringify(win.getBounds()) + ' ' + await state()); await shot('6-franja-pequena.png');
+    await wc.executeJavaScript("window.taskbarz.setLayout({ scale: 0, width: 100, pos: 'center', compact: false })");
+    await wait(1500);
     fs.writeFileSync(path.join(dir, 'log.txt'), log.join('\n'));
     app.quit();
   });

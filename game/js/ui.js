@@ -234,10 +234,18 @@
     $('btn-panel').addEventListener('click', () => setPanel(Z.TASKBAR ? false : $('panel').hidden));
     $('bar-garage').addEventListener('click', () => { touch(); setPanel(true); });
     $('bar-go').addEventListener('click', () => { G.lastInteract = -99; Z.launch(); });
-    $('bar-quit').addEventListener('click', () => { Z.save(); if (desk) desk.quit(); });
-    if (desk) { $('btn-quit').hidden = false; $('btn-quit').addEventListener('click', () => { Z.save(); desk.quit(); }); }
+    // Salir solo desde la ventana del garaje y con confirmación, para no cerrar el juego por un clic despistado.
+    if (desk) {
+      const q = $('btn-quit'); let armT = 0;
+      q.hidden = false;
+      q.addEventListener('click', () => {
+        if (Date.now() - armT < 3000) { Z.save(); desk.quit(); return; }
+        armT = Date.now(); q.textContent = '¿Salir? Pulsa otra vez';
+        setTimeout(() => { q.textContent = 'Salir'; }, 3000);
+      });
+    }
     if (Z.TASKBAR) setPanel(false);
-    // En la barra, los clics atraviesan el juego salvo encima de sus botones (lo gestiona js/shot.js).
+    // En la barra, los clics atraviesan el juego salvo encima de sus botones (lo gestiona js/through.js).
     $('btn-go').addEventListener('click', () => { touch(); G.lastInteract = -99; if (Z.TASKBAR) setPanel(false); Z.launch(); });
     // Servicio: reparar (coche) y repostar (surtidor), con clic en el escenario o en sus botones.
     $('hot-car').addEventListener('click', (e) => UI.serviceClick('hp', e));

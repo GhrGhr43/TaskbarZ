@@ -73,7 +73,9 @@
 
   Z.Audio = {
     play(name, o = {}) {
-      if (pref.muted || !init() || ctx.state !== 'running' || !SFX[name]) return;
+      if (pref.muted || !init() || !SFX[name]) return;
+      if (ctx.state === 'suspended') ctx.resume();
+      if (ctx.state === 'closed') return;
       const now = ctx.currentTime, gap = o.gap != null ? o.gap : 0.03;
       if (last[name] && now - last[name] < gap) return;
       last[name] = now;

@@ -20,14 +20,17 @@
   Z.enterGarage(true);
 
   let last = performance.now(), saveT = 0, uiT = 0;
+  // Ahorro de recursos: en la barra basta con 30 fotogramas por segundo (15 si el coche está en el garaje).
+  Z.fpsCap = () => (Z.overlay ? (G.mode === 'garage' ? 15 : 30) : 60);
   function frame(now) {
-    let dt = Math.max(0, Math.min(0.05, (now - last) / 1000));  // el primer frame puede llegar con hora anterior
+    if (now - last < 1000 / Z.fpsCap() - 2) { requestAnimationFrame(frame); return; }
+    let dt = Math.max(0, Math.min(0.07, (now - last) / 1000));  // el primer frame puede llegar con hora anterior
     last = now;
     const steps = Math.max(1, Math.round(Z.debug.timeScale));
     for (let i = 0; i < steps; i++) Z.update(dt);
     while (G.events.length) Z.UI.event(G.events.shift());
     Z.render(out, wc, wctx);
-    Z.Shot.frame(out.getContext('2d'), dt);
+    Z.Through.frame();
     Z.UI.frame(dt);
     uiT -= dt; if (uiT <= 0) { uiT = 0.25; Z.UI.tick(); }
     saveT -= dt; if (saveT <= 0) { saveT = 5; Z.save(); }
